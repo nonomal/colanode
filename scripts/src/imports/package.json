@@ -1,0 +1,25 @@
+{
+  "name": "@colanode/imports",
+  "version": "0.1.0",
+  "description": "Data import tools for Colanode",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "import:notion": "ts-node notion/index.ts"
+  },
+  "dependencies": {
+    "@colanode/core": "workspace:*",
+    "axios": "^1.6.0",
+    "commander": "^11.0.0",
+    "csv-parse": "^5.5.0",
+    "marked": "^9.0.0",
+    "mime-types": "^2.1.35"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^2.1.4",
+    "@types/node": "^18.16.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  }
+}
