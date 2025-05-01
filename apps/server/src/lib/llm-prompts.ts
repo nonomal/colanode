@@ -24,6 +24,10 @@ export const queryRewritePrompt = PromptTemplate.fromTemplate(
   5. Include essential filters and constraints
 </guidelines>
 
+<conversation_history>
+{chatHistory}
+</conversation_history>
+
 <input>
   Original query: {query}
 </input>
@@ -300,6 +304,33 @@ export const databaseFilterPrompt = ChatPromptTemplate.fromTemplate(
   }}
 </output_format>`
 );
+
+export const evaluateAndRefinePrompt = PromptTemplate.fromTemplate(`
+<task>Evaluate if the retrieved SOURCES are sufficient to answer the USER QUERY. If not, decide whether to refine the query, suggest expanding specific sources, or both for a better search iteration.</task>
+
+<criteria_for_sufficiency>
+• Is the main question clearly addressed by at least one source?
+• Are obvious sub-questions or necessary details covered by the sources?
+• For list/exhaustive queries, do the sources likely cover ≥80% of the expected items?
+</criteria_for_sufficiency>
+
+<instructions>
+1. Evaluate sufficiency based on the criteria.
+2. If sufficient, output: {{"decision": "sufficient"}}
+3. If insufficient:
+   a. Analyze if a refined search query could potentially find better sources. Generate a 'newSemantic' query if helpful.
+   b. Analyze if expanding specific sources (e.g., fetching their children/descendants) seems promising. Identify their 'sourceId's if applicable. You can suggest expansion even without refining the query, or alongside a refined query.
+   c. If neither refining the query nor expanding sources seems likely to help (e.g., sources likely don't exist), output: {{"decision": "sufficient"}} // Signal to stop iterating
+   d. Otherwise, output: {{"decision": "insufficient", "newSemantic": "<optional refined semantic query>", "expandSourceIds": ["<optional list of source IDs to expand>"]}}
+</instructions>
+
+<conversation_history>
+{chatHistory}
+</conversation_history>
+
+<user_query>{query}</user_query>
+<sources>{sources}</sources>
+`);
 
 export const chunkSummarizationPrompt = PromptTemplate.fromTemplate(
   `<task>

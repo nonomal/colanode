@@ -15,6 +15,7 @@ export const messageAttributesSchema = z.object({
   referenceId: z.string().nullable().optional(),
   content: z.record(blockSchema).optional().nullable(),
   selectedContextNodeIds: z.array(z.string()).optional().nullable(),
+  mode: z.enum(['deep_search', 'default']).optional().nullable(),
 });
 
 export type MessageAttributes = z.infer<typeof messageAttributesSchema>;

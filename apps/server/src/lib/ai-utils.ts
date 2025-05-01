@@ -61,8 +61,23 @@ Time: ${time}`;
   ) {
     header += `\nDatabase: ${doc.metadata.parentContext.name}`;
   }
-  const content = `\n${'─'.repeat(40)}\nCONTENT:\n${'─'.repeat(40)}\n"${doc.pageContent}"\n`;
-  return `${separator}\n${header}${content}`;
+
+  // Content section
+  let content = `\n${'─'.repeat(40)}\nCONTENT:\n${'─'.repeat(40)}\n"${doc.pageContent}"`;
+
+  // Add subpage information for page node types that have minimal content
+  if (
+    doc.metadata?.type === 'node' &&
+    doc.metadata.nodeType === 'page' &&
+    doc.metadata.subpages
+  ) {
+    content += `\n\nThis page contains the following subpages:\n`;
+    doc.metadata.subpages.forEach((subpage: { id: string; name: string }) => {
+      content += `- ${subpage.name}\n`;
+    });
+  }
+
+  return `${separator}\n${header}${content}\n`;
 };
 
 export const formatContextDocuments = (docs: Document[]): string => {
@@ -121,6 +136,19 @@ export const formatMetadataForPrompt = (
 
   if (locationInfo.length > 0) {
     formattedMetadata += '\n' + locationInfo.join('\n');
+  }
+
+  // Add subpages information for page nodes
+  if (
+    metadata.type === 'node' &&
+    (metadata as NodeMetadata).nodeType === 'page' &&
+    (metadata as NodeMetadata).subpages?.length
+  ) {
+    const subpages = (metadata as NodeMetadata).subpages;
+    formattedMetadata += '\nContains subpages:';
+    subpages?.forEach((subpage) => {
+      formattedMetadata += `\n  • ${subpage.name}`;
+    });
   }
 
   if (metadata.databaseInfo) {

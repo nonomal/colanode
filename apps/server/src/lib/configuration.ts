@@ -105,6 +105,10 @@ export interface AiConfiguration {
     noContext: AiModelConfiguration;
     intentRecognition: AiModelConfiguration;
     databaseFilter: AiModelConfiguration;
+    reasoning: AiModelConfiguration;
+    deepPlanner: AiModelConfiguration;
+    deepCritic: AiModelConfiguration;
+    deepRerank: AiModelConfiguration;
   };
   embedding: {
     provider: AiProvider;
@@ -115,6 +119,10 @@ export interface AiConfiguration {
   };
   chunking: ChunkingConfiguration;
   retrieval: RetrievalConfiguration;
+  deepSearch?: {
+    enabled: boolean;
+    maxIterations: number;
+  };
 }
 
 export interface ChunkingConfiguration {
@@ -252,14 +260,14 @@ export const configuration: Configuration = {
       rerank: {
         provider: (getOptionalEnv('RERANK_PROVIDER') || 'openai') as AiProvider,
         modelName: getOptionalEnv('RERANK_MODEL') || 'gpt-4o-mini',
-        temperature: parseFloat(getOptionalEnv('RERANK_TEMPERATURE') || '0.3'),
+        temperature: parseFloat(getOptionalEnv('RERANK_TEMPERATURE') || '0.1'),
       },
       summarization: {
         provider: (getOptionalEnv('SUMMARIZATION_PROVIDER') ||
           'openai') as AiProvider,
         modelName: getOptionalEnv('SUMMARIZATION_MODEL') || 'gpt-4o-mini',
         temperature: parseFloat(
-          getOptionalEnv('SUMMARIZATION_TEMPERATURE') || '0.3'
+          getOptionalEnv('SUMMARIZATION_TEMPERATURE') || '0.2'
         ),
       },
       contextEnhancer: {
@@ -267,7 +275,7 @@ export const configuration: Configuration = {
           'openai') as AiProvider,
         modelName: getOptionalEnv('CHUNK_CONTEXT_MODEL') || 'gpt-4o-mini',
         temperature: parseFloat(
-          getOptionalEnv('CHUNK_CONTEXT_TEMPERATURE') || '0.3'
+          getOptionalEnv('CHUNK_CONTEXT_TEMPERATURE') || '0.2'
         ),
       },
       noContext: {
@@ -275,7 +283,7 @@ export const configuration: Configuration = {
           'openai') as AiProvider,
         modelName: getOptionalEnv('NO_CONTEXT_MODEL') || 'gpt-4o-mini',
         temperature: parseFloat(
-          getOptionalEnv('NO_CONTEXT_TEMPERATURE') || '0.3'
+          getOptionalEnv('NO_CONTEXT_TEMPERATURE') || '0.5'
         ),
       },
       intentRecognition: {
@@ -283,7 +291,7 @@ export const configuration: Configuration = {
           'openai') as AiProvider,
         modelName: getOptionalEnv('INTENT_RECOGNITION_MODEL') || 'gpt-4o-mini',
         temperature: parseFloat(
-          getOptionalEnv('INTENT_RECOGNITION_TEMPERATURE') || '0.3'
+          getOptionalEnv('INTENT_RECOGNITION_TEMPERATURE') || '0.0'
         ),
       },
       databaseFilter: {
@@ -291,7 +299,39 @@ export const configuration: Configuration = {
           'openai') as AiProvider,
         modelName: getOptionalEnv('DATABASE_FILTER_MODEL') || 'gpt-4o-mini',
         temperature: parseFloat(
-          getOptionalEnv('DATABASE_FILTER_TEMPERATURE') || '0.3'
+          getOptionalEnv('DATABASE_FILTER_TEMPERATURE') || '0.0'
+        ),
+      },
+      reasoning: {
+        provider: (getOptionalEnv('REASONING_PROVIDER') ||
+          'openai') as AiProvider,
+        modelName: getOptionalEnv('REASONING_MODEL') || 'gpt-4o',
+        temperature: parseFloat(
+          getOptionalEnv('REASONING_TEMPERATURE') || '0.3'
+        ),
+      },
+      deepPlanner: {
+        provider: (getOptionalEnv('DEEP_PLANNER_PROVIDER') ||
+          'openai') as AiProvider,
+        modelName: getOptionalEnv('DEEP_PLANNER_MODEL') || 'o3',
+        temperature: parseFloat(
+          getOptionalEnv('DEEP_PLANNER_TEMPERATURE') || '0.3'
+        ),
+      },
+      deepCritic: {
+        provider: (getOptionalEnv('DEEP_CRITIC_PROVIDER') ||
+          'openai') as AiProvider,
+        modelName: getOptionalEnv('DEEP_CRITIC_MODEL') || 'o3',
+        temperature: parseFloat(
+          getOptionalEnv('DEEP_CRITIC_TEMPERATURE') || '0.0'
+        ),
+      },
+      deepRerank: {
+        provider: (getOptionalEnv('DEEP_RERANK_PROVIDER') ||
+          'google') as AiProvider,
+        modelName: getOptionalEnv('DEEP_RERANK_MODEL') || 'gemini-2.5-pro',
+        temperature: parseFloat(
+          getOptionalEnv('DEEP_RERANK_TEMPERATURE') || '0.2'
         ),
       },
     },
@@ -325,6 +365,12 @@ export const configuration: Configuration = {
           getOptionalEnv('RETRIEVAL_HYBRID_SEARCH_MAX_RESULTS') || '20'
         ),
       },
+    },
+    deepSearch: {
+      enabled: getOptionalEnv('DEEP_SEARCH_ENABLED') === 'true',
+      maxIterations: parseInt(
+        getOptionalEnv('DEEP_SEARCH_MAX_ITERATIONS') || '3'
+      ),
     },
   },
 };

@@ -3,6 +3,7 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { Document } from '@langchain/core/documents';
 import { NodeType, RecordNode } from '@colanode/core';
+import { z } from 'zod';
 
 import { configuration } from '@/lib/configuration';
 import {
@@ -14,6 +15,8 @@ import {
   DatabaseFilterResult,
   RewrittenQuery,
   rewrittenQuerySchema,
+  evaluateAndRefineSchema,
+  EvaluateAndRefineResult,
 } from '@/types/llm';
 import {
   queryRewritePrompt,
@@ -24,10 +27,13 @@ import {
   noContextPrompt,
   databaseFilterPrompt,
   chunkSummarizationPrompt,
+  evaluateAndRefinePrompt,
 } from '@/lib/llm-prompts';
+import { AssistantChainState } from '@/types/assistant';
 
 const getChatModel = (
-  task: keyof typeof configuration.ai.models
+  task: keyof typeof configuration.ai.models,
+  reasoningModel: boolean = false
 ): ChatOpenAI | ChatGoogleGenerativeAI => {
   const modelConfig = configuration.ai.models[task];
   if (!configuration.ai.enabled) {
@@ -41,6 +47,12 @@ const getChatModel = (
 
   switch (modelConfig.provider) {
     case 'openai':
+      if (reasoningModel) {
+        return new ChatOpenAI({
+          modelName: modelConfig.modelName,
+          openAIApiKey: providerConfig.apiKey,
+        });
+      }
       return new ChatOpenAI({
         modelName: modelConfig.modelName,
         temperature: modelConfig.temperature,
@@ -57,10 +69,13 @@ const getChatModel = (
   }
 };
 
-export const rewriteQuery = async (query: string): Promise<RewrittenQuery> => {
+export const rewriteQuery = async (
+  query: string,
+  chatHistory: string = ''
+): Promise<RewrittenQuery> => {
   const task = 'queryRewrite';
   const model = getChatModel(task).withStructuredOutput(rewrittenQuerySchema);
-  return queryRewritePrompt.pipe(model).invoke({ query });
+  return queryRewritePrompt.pipe(model).invoke({ query, chatHistory });
 };
 
 export const summarizeDocument = async (
@@ -76,21 +91,31 @@ export const summarizeDocument = async (
 };
 
 export const rerankDocuments = async (
-  documents: { content: string; type: string; sourceId: string }[],
-  query: string
+  state: AssistantChainState
 ): Promise<
   Array<{ index: number; score: number; type: string; sourceId: string }>
 > => {
-  const task = 'rerank';
-  const model = getChatModel(task).withStructuredOutput(
-    rerankedDocumentsSchema
-  );
+  const task = state.mode === 'deep_search' ? 'deepRerank' : 'rerank';
+  const model = getChatModel(
+    task,
+    state.mode === 'deep_search'
+  ).withStructuredOutput(rerankedDocumentsSchema);
+
+  const documents = state.contextDocuments.map((doc) => ({
+    content: doc.pageContent,
+    type: doc.metadata.type,
+    sourceId: doc.metadata.id,
+  }));
+
   const formattedContext = documents
     .map(
       (doc, idx) =>
         `${idx}. Type: ${doc.type}, Content: ${doc.content}, ID: ${doc.sourceId}\n`
     )
     .join('\n');
+
+  const query = state.rewrittenQuery.semanticQuery;
+
   const result = (await rerankPrompt
     .pipe(model)
     .invoke({ query, context: formattedContext })) as RerankedDocuments;
@@ -178,6 +203,17 @@ ${db.sampleRecords
   return databaseFilterPrompt
     .pipe(model)
     .invoke({ query: args.query, databasesInfo });
+};
+
+export const evaluateAndRefine = async (args: {
+  query: string;
+  sources: string;
+  chatHistory: string;
+}): Promise<EvaluateAndRefineResult> => {
+  const model = getChatModel('deepPlanner', true).withStructuredOutput(
+    evaluateAndRefineSchema
+  );
+  return evaluateAndRefinePrompt.pipe(model).invoke(args);
 };
 
 export const enrichChunk = async (

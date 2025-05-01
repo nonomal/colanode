@@ -199,6 +199,31 @@ export const fetchNodeMetadata = async (
     );
   }
 
+  // Fetch subpages for page type nodes
+  let subpagesInfo: Array<{ id: string; name: string }> | undefined;
+  if (node.type === 'page') {
+    const subpages = await database
+      .selectFrom('nodes')
+      .select(['id', 'attributes', 'type'])
+      .where('parent_id', '=', node.id)
+      .where('type', '=', 'page')
+      .execute();
+
+    if (subpages.length > 0) {
+      subpagesInfo = subpages.map((subpage) => {
+        const subpageModel = getNodeModel(subpage.type);
+        const subpageText = subpageModel?.extractNodeText(
+          subpage.id,
+          subpage.attributes
+        );
+        return {
+          id: subpage.id,
+          name: subpageText?.name || 'Untitled Page',
+        };
+      });
+    }
+  }
+
   let fieldInfo: Record<string, { type: string; name: string }> | undefined;
   if (node.type === 'record') {
     const recordAttrs = node.attributes as RecordAttributes;
@@ -214,6 +239,7 @@ export const fetchNodeMetadata = async (
     type: 'node',
     nodeType: node.type,
     fieldInfo,
+    subpages: subpagesInfo,
   };
 };
 
@@ -296,6 +322,7 @@ export const fetchNodesMetadata = async (
   const userIds = new Set<string>();
   const parentIds = new Set<string>();
   const databaseIds = new Set<string>();
+  const pageNodeIds = new Set<string>();
 
   nodes.forEach((node) => {
     workspaceIds.add(node.workspace_id);
@@ -310,7 +337,40 @@ export const fetchNodesMetadata = async (
       const recordAttrs = node.attributes as RecordAttributes;
       databaseIds.add(recordAttrs.databaseId);
     }
+    if (node.type === 'page') {
+      pageNodeIds.add(node.id);
+    }
   });
+
+  // Fetch all subpages for page-type nodes
+  const subpagesByParentId = new Map<string, { id: string; name: string }[]>();
+  if (pageNodeIds.size > 0) {
+    const subpages = await database
+      .selectFrom('nodes')
+      .select(['id', 'attributes', 'parent_id', 'type'])
+      .where('parent_id', 'in', Array.from(pageNodeIds))
+      .where('type', '=', 'page')
+      .execute();
+
+    for (const subpage of subpages) {
+      if (subpage.parent_id) {
+        const subpageModel = getNodeModel(subpage.type);
+        const subpageText = subpageModel?.extractNodeText(
+          subpage.id,
+          subpage.attributes
+        );
+        const subpageInfo = {
+          id: subpage.id,
+          name: subpageText?.name || 'Untitled Page',
+        };
+
+        if (!subpagesByParentId.has(subpage.parent_id)) {
+          subpagesByParentId.set(subpage.parent_id, []);
+        }
+        subpagesByParentId.get(subpage.parent_id)?.push(subpageInfo);
+      }
+    }
+  }
 
   const workspaces = await database
     .selectFrom('workspaces')
@@ -382,6 +442,11 @@ export const fetchNodesMetadata = async (
         ? { id: workspace.id, name: workspace.name }
         : undefined,
     };
+
+    // Add subpages if this is a page node with subpages
+    if (node.type === 'page' && subpagesByParentId.has(node.id)) {
+      metadata.subpages = subpagesByParentId.get(node.id);
+    }
 
     if (node.parent_id) {
       const parentNode = parentNodeMap.get(node.parent_id);

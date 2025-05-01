@@ -17,6 +17,7 @@ export type NodeMetadata = BaseMetadata & {
   type: 'node';
   nodeType: string;
   fieldInfo?: Record<string, DatabaseFieldInfo>;
+  subpages?: Array<{ id: string; name: string }>;
 };
 
 export type DocumentMetadata = BaseMetadata & {

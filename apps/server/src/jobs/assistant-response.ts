@@ -19,6 +19,7 @@ export type AssistantResponseInput = {
   messageId: string;
   workspaceId: string;
   selectedContextNodeIds?: string[];
+  mode: 'deep_search' | 'default';
 };
 
 declare module '@/types/jobs' {
@@ -32,11 +33,12 @@ declare module '@/types/jobs' {
 export const assistantResponseHandler: JobHandler<
   AssistantResponseInput
 > = async (input) => {
-  const { messageId, workspaceId, selectedContextNodeIds } = input;
+  const { messageId, workspaceId, selectedContextNodeIds, mode } = input;
   console.log('Starting assistant response handler', {
     messageId,
     workspaceId,
     selectedContextNodeIds,
+    mode,
   });
 
   if (!configuration.ai.enabled) {
@@ -84,13 +86,15 @@ export const assistantResponseHandler: JobHandler<
       workspaceId,
       userId: user.id,
       userDetails: {
+        id: user.id,
         name: user.name || 'User',
         email: user.email || '',
       },
       parentMessageId: message.parent_id || message.id,
       currentMessageId: message.id,
-      originalMessage: message,
       selectedContextNodeIds,
+      originalMessage: message,
+      mode,
     });
 
     await createAndPublishResponse(

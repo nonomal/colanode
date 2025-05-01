@@ -5,6 +5,8 @@ import {
   DatabaseAttributes,
   getNodeModel,
   RecordAttributes,
+  RecordNode,
+  NodeType,
 } from '@colanode/core';
 
 import { database } from '@/data/database';
@@ -17,6 +19,7 @@ import {
   rerankDocuments,
   generateFinalAnswer,
   generateDatabaseFilters,
+  evaluateAndRefine as evaluateAndRefineService,
 } from '@/services/llm-service';
 import { nodeRetrievalService } from '@/services/node-retrieval-service';
 import { documentRetrievalService } from '@/services/document-retrieval-service';
@@ -29,6 +32,7 @@ import {
   AssistantResponse,
   AssistantInput,
 } from '@/types/assistant';
+import { RewrittenQuery } from '@/types/llm';
 import { fetchMetadataForContextItems } from '@/lib/metadata';
 import { SelectNode } from '@/data/schema';
 import {
@@ -38,8 +42,16 @@ import {
   formatMetadataForPrompt,
 } from '@/lib/ai-utils';
 
-async function generateRewrittenQuery(state: AssistantChainState) {
-  const rewrittenQuery = await rewriteQuery(state.userInput);
+async function generateRewrittenQuery(
+  state: AssistantChainState
+): Promise<Partial<AssistantChainState>> {
+  // Format chat history for context
+  const formattedChatHistory = formatChatHistory(state.chatHistory);
+
+  const rewrittenQuery = await rewriteQuery(
+    state.userInput,
+    formattedChatHistory
+  );
   return { rewrittenQuery };
 }
 
@@ -154,10 +166,8 @@ async function rerankContextDocuments(state: AssistantChainState) {
     type: doc.metadata.type,
     sourceId: doc.metadata.id,
   }));
-  const rerankedContext = await rerankDocuments(
-    docsForRerank,
-    state.rewrittenQuery.semanticQuery
-  );
+
+  const rerankedContext = await rerankDocuments(state);
 
   return { rerankedContext };
 }
@@ -232,12 +242,30 @@ async function fetchDatabaseContext(state: AssistantChainState) {
   const databaseContext: DatabaseContextItem[] = await Promise.all(
     databases.map(async (db) => {
       const dbNode = db as SelectNode;
-      const sampleRecords = await recordsRetrievalService.retrieveByFilters(
+      const retrievedRecords = await recordsRetrievalService.retrieveByFilters(
         db.id,
         state.workspaceId,
         state.userId,
         { filters: [], sorts: [], page: 1, count: 5 }
       );
+
+      const sampleRecords: RecordNode[] = retrievedRecords
+        .filter((record) => record.parent_id !== null)
+        .map((record) => ({
+          id: record.id,
+          parentId: record.parent_id!,
+          rootId: record.root_id,
+          workspaceId: record.workspace_id,
+          type: 'record',
+          attributes: record.attributes as RecordAttributes,
+          createdAt: record.created_at.toISOString(),
+          createdBy: record.created_by,
+          updatedAt: record.updated_at?.toISOString() || null,
+          updatedBy: record.updated_by,
+          deletedAt: record.deleted_at?.toISOString() || null,
+          deletedBy: record.deleted_by,
+        }));
+
       const dbAttrs = dbNode.attributes as DatabaseAttributes;
       const fields = dbAttrs.fields || {};
       const formattedFields = Object.entries(fields).reduce(
@@ -277,6 +305,129 @@ async function generateDatabaseFilterAttributes(state: AssistantChainState) {
   return { databaseFilters };
 }
 
+// NEW combined evaluation and refinement node
+async function evaluateAndRefine(
+  state: AssistantChainState
+): Promise<Partial<AssistantChainState>> {
+  console.log(
+    `Iteration ${state.iteration + 1}: Evaluating context sufficiency.`
+  );
+  // Format the top context documents for the prompt
+  const formattedSources = formatContextDocuments(state.topContext);
+  // Format chat history for context
+  const formattedChatHistory = formatChatHistory(state.chatHistory);
+
+  // Guard against calling evaluateAndRefineService with empty sources
+  if (!formattedSources || formattedSources.trim() === '') {
+    console.warn(
+      'evaluateAndRefine called with empty formatted sources. Assuming sufficient.'
+    );
+    return {
+      iteration: state.iteration + 1,
+      coverage: 'sufficient' as const,
+    };
+  }
+
+  // Call the service which now uses the updated prompt and schema
+  const result = await evaluateAndRefineService({
+    query: state.userInput,
+    sources: formattedSources,
+    chatHistory: formattedChatHistory,
+  });
+  console.log('EvaluateAndRefine Result:', result);
+
+  // Prepare the state update
+  const newStateUpdate: Partial<AssistantChainState> = {
+    iteration: state.iteration + 1, // Always increment iteration if we reached this node
+  };
+
+  // Logic based on the combined result
+  if (result.decision === 'sufficient') {
+    console.log('Evaluation result: Sufficient.');
+    // If sufficient, stop the loop by setting coverage to sufficient
+    newStateUpdate.coverage = 'sufficient' as const;
+  } else {
+    console.log('Evaluation result: Insufficient.');
+    // If insufficient...
+    newStateUpdate.coverage = 'insufficient' as const; // Explicitly set to insufficient to continue loop
+
+    // Update query if a new one is provided
+    if (result.newSemantic) {
+      console.log('Refining semantic query to:', result.newSemantic);
+      newStateUpdate.rewrittenQuery = {
+        ...state.rewrittenQuery,
+        semanticQuery: result.newSemantic,
+      };
+    } else {
+      console.log('No new semantic query suggested.');
+    }
+
+    // If the LLM suggested specific sources to expand, update selectedContextNodeIds
+    if (result.expandSourceIds && result.expandSourceIds.length > 0) {
+      console.log(
+        'Suggesting expansion for Source IDs:',
+        result.expandSourceIds
+      );
+
+      try {
+        // Get the full set of node IDs (including descendants) for the suggested expansion IDs
+        const expandedNodesWithDescendants = await getFullContextNodeIds(
+          result.expandSourceIds
+        );
+        console.log(
+          `Expanded ${result.expandSourceIds.length} source IDs to ${expandedNodesWithDescendants.length} nodes (with descendants)`
+        );
+
+        // Create a set from current selectedContextNodeIds (if any) to avoid duplicates
+        const fullExpandedIds = new Set<string>(
+          state.selectedContextNodeIds || []
+        );
+
+        // Add all the expanded IDs (including descendants) to the set
+        expandedNodesWithDescendants.forEach((id) => fullExpandedIds.add(id));
+
+        // Update selectedContextNodeIds in the state
+        newStateUpdate.selectedContextNodeIds = Array.from(fullExpandedIds);
+        console.log(
+          'Updated selectedContextNodeIds:',
+          newStateUpdate.selectedContextNodeIds.length
+        );
+      } catch (error) {
+        console.error('Error expanding source IDs:', error);
+        // If expansion fails, fall back to just adding the original IDs
+        const fallbackIds = new Set<string>(state.selectedContextNodeIds || []);
+        result.expandSourceIds.forEach((id) => fallbackIds.add(id));
+        newStateUpdate.selectedContextNodeIds = Array.from(fallbackIds);
+        console.log('Fallback: Using original source IDs without expansion');
+      }
+    }
+
+    // Check if refinement seems futile (insufficient but no new query or source IDs to expand)
+    if (
+      !result.newSemantic &&
+      (!result.expandSourceIds || result.expandSourceIds.length === 0)
+    ) {
+      console.log('Refinement/expansion seems futile. Stopping iteration.');
+      // LLM judged further refinement/expansion futile, stop the loop
+      newStateUpdate.coverage = 'sufficient' as const;
+    }
+  }
+
+  // Safety check: Ensure max iterations is respected
+  if (
+    newStateUpdate.iteration !== undefined &&
+    newStateUpdate.iteration >= state.maxIterations &&
+    newStateUpdate.coverage === 'insufficient'
+  ) {
+    console.log(
+      `Max iterations (${state.maxIterations}) reached. Forcing coverage to sufficient.`
+    );
+    newStateUpdate.coverage = 'sufficient';
+  }
+
+  return newStateUpdate;
+}
+
 const assistantResponseChain = new StateGraph(ResponseState)
   .addNode('generateRewrittenQuery', generateRewrittenQuery)
   .addNode('fetchContextDocuments', fetchContextDocuments)
@@ -288,6 +439,7 @@ const assistantResponseChain = new StateGraph(ResponseState)
   .addNode('generateNoContextResponse', generateNoContextResponse)
   .addNode('fetchDatabaseContext', fetchDatabaseContext)
   .addNode('generateDatabaseFilterAttributes', generateDatabaseFilterAttributes)
+  .addNode('evaluateAndRefine', evaluateAndRefine)
   .addEdge('__start__', 'fetchChatHistory')
   .addEdge('fetchChatHistory', 'assessIntent')
   .addConditionalEdges('assessIntent', (state) =>
@@ -298,7 +450,14 @@ const assistantResponseChain = new StateGraph(ResponseState)
   .addEdge('generateRewrittenQuery', 'fetchContextDocuments')
   .addEdge('fetchContextDocuments', 'rerankContextDocuments')
   .addEdge('rerankContextDocuments', 'selectRelevantDocuments')
-  .addEdge('selectRelevantDocuments', 'generateResponse')
+  .addConditionalEdges('selectRelevantDocuments', (state) =>
+    state.mode === 'deep_search' ? 'evaluateAndRefine' : 'generateResponse'
+  )
+  .addConditionalEdges('evaluateAndRefine', (state) =>
+    state.coverage === 'sufficient' || state.iteration >= state.maxIterations
+      ? 'generateResponse'
+      : 'fetchContextDocuments'
+  )
   .addEdge('generateResponse', '__end__')
   .addEdge('generateNoContextResponse', '__end__')
   .compile();
@@ -336,17 +495,34 @@ export async function runAssistantResponseChain(
     );
   }
 
+  // Initialize state for the chain, including new fields
   const chainInput = {
-    ...input,
-    selectedContextNodeIds: fullContextNodeIds,
+    // Fields from AssistantInput
+    userInput: input.userInput,
+    workspaceId: input.workspaceId,
+    userId: input.userId,
+    userDetails: input.userDetails,
+    parentMessageId: input.parentMessageId,
+    currentMessageId: input.currentMessageId,
+    selectedContextNodeIds: fullContextNodeIds, // Use processed IDs
+    // New state fields
+    mode: input.mode ?? 'default',
+    iteration: 0,
+    maxIterations: input.mode === 'deep_search' ? 3 : 1,
+    coverage: 'unknown' as const,
+    // Default intent and databaseFilters (nodes will overwrite if needed)
     intent: 'retrieve' as const,
     databaseFilters: { shouldFilter: false, filters: [] },
+    // Ensure isDeepSearch is set based on mode for potential legacy needs
+    isDeepSearch: input.mode === 'deep_search',
   };
 
   const callbacks = langfuseCallback ? [langfuseCallback] : undefined;
 
+  // Invoke the chain with the initial state subset
   const result = await assistantResponseChain.invoke(chainInput, {
     callbacks,
   });
+
   return { finalAnswer: result.finalAnswer, citations: result.citations };
 }

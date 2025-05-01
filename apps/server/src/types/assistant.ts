@@ -7,6 +7,8 @@ import {
   RewrittenQuery,
 } from './llm';
 import { SelectNode } from '@/data/schema';
+import { RecordNode } from '@colanode/core';
+import { DatabaseViewFilterAttributes } from '@colanode/core';
 
 export type Citation = {
   sourceId: string;
@@ -22,7 +24,7 @@ export type RerankedContextItem = {
 
 export type DatabaseFilter = {
   databaseId: string;
-  filters: any[];
+  filters: DatabaseViewFilterAttributes[];
 };
 
 export type DatabaseFilters = {
@@ -34,10 +36,11 @@ export type DatabaseContextItem = {
   id: string;
   name: string;
   fields: Record<string, { type: string; name: string }>;
-  sampleRecords: any[];
+  sampleRecords: RecordNode[];
 };
 
 export type UserDetails = {
+  id: string;
   name: string;
   email: string;
 };
@@ -51,6 +54,7 @@ export type AssistantInput = {
   currentMessageId: string;
   originalMessage: SelectNode;
   selectedContextNodeIds?: string[];
+  mode?: 'default' | 'deep_search';
 };
 
 export type AssistantResponse = {
@@ -77,6 +81,10 @@ export const ResponseState = Annotation.Root({
   databaseContext: Annotation<DatabaseContextItem[]>(),
   databaseFilters: Annotation<DatabaseFilterResult>(),
   selectedContextNodeIds: Annotation<string[]>(),
+  mode: Annotation<'default' | 'deep_search'>(),
+  iteration: Annotation<number>(),
+  maxIterations: Annotation<number>(),
+  coverage: Annotation<'unknown' | 'sufficient' | 'insufficient'>(),
 });
 
 export type AssistantChainState = typeof ResponseState.State;

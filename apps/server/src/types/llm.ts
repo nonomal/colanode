@@ -4,9 +4,9 @@ export const rerankedDocumentsSchema = z.object({
   rankings: z.array(
     z.object({
       index: z.number(),
-      score: z.number().min(0).max(1),
-      type: z.enum(['node', 'document']),
-      sourceId: z.string(),
+      score: z.number().describe('Relevance score (0-1 float)'),
+      type: z.string().describe('Document type'),
+      sourceId: z.string().describe('Original source ID'),
     })
   ),
 });
@@ -40,3 +40,11 @@ export const rewrittenQuerySchema = z.object({
 });
 
 export type RewrittenQuery = z.infer<typeof rewrittenQuerySchema>;
+
+// NEW Schema for combined evaluation and refinement
+export const evaluateAndRefineSchema = z.object({
+  decision: z.enum(['sufficient', 'insufficient']),
+  newSemantic: z.string().optional(),
+  expandSourceIds: z.array(z.string()).optional(),
+});
+export type EvaluateAndRefineResult = z.infer<typeof evaluateAndRefineSchema>;
