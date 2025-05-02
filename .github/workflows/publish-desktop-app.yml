@@ -135,7 +135,7 @@ jobs:
         run: |
           npm ci
 
-      - name: Publish and Notarize Electron App (macOS)
+      - name: Publish and Notarize Electron App (macOS Apple Silicon)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_ENV: production
@@ -146,7 +146,20 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ env.KEYCHAIN_PASSWORD }}
         working-directory: apps/desktop
         run: |
-          npm run publish -- --mac
+          npm run publish -- --mac --arch="arm64"
+
+      - name: Publish and Notarize Electron App (macOS Intel)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_ENV: production
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYCHAIN_PATH: ${{ env.KEYCHAIN_PATH }}
+          KEYCHAIN_PASSWORD: ${{ env.KEYCHAIN_PASSWORD }}
+        working-directory: apps/desktop
+        run: |
+          npm run publish -- --mac --arch="x64"
 
       - name: Delete Temporary Keychain
         if: always()
