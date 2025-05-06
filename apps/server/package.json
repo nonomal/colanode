@@ -19,6 +19,7 @@
   },
   "description": "",
   "devDependencies": {
+    "@types/archiver": "^6.0.3",
     "@types/node": "^22.15.3",
     "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.11.14",
@@ -39,6 +40,7 @@
     "@langchain/langgraph": "^0.2.67",
     "@langchain/openai": "^0.5.8",
     "@node-rs/argon2": "^2.0.2",
+    "archiver": "^7.0.1",
     "axios": "^1.9.0",
     "bullmq": "^5.52.0",
     "diff": "^7.0.0",
@@ -51,6 +53,7 @@
     "langchain": "^0.3.24",
     "langfuse-langchain": "^3.37.2",
     "nodemailer": "^6.10.1",
+    "p-limit": "^6.2.0",
     "pg": "^8.15.6",
     "redis": "^5.0.0",
     "sharp": "^0.34.1"

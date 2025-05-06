@@ -38,6 +38,7 @@ export enum IdType {
   Block = 'bl',
   OtpCode = 'ot',
   Mention = 'me',
+  Export = 'ex',
 }
 
 export const generateId = (type: IdType): string => {

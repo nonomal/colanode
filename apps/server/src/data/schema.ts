@@ -292,6 +292,23 @@ export type SelectDocumentEmbedding = Selectable<DocumentEmbeddingTable>;
 export type CreateDocumentEmbedding = Insertable<DocumentEmbeddingTable>;
 export type UpdateDocumentEmbedding = Updateable<DocumentEmbeddingTable>;
 
+interface ExportTable {
+  id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  type: ColumnType<string, string, string>;
+  status: ColumnType<number, number, number>;
+  counts: ColumnType<string | null, string | null, string | null>;
+  created_at: ColumnType<Date, Date, never>;
+  created_by: ColumnType<string, string, never>;
+  started_at: ColumnType<Date | null, Date | null, Date | null>;
+  pinged_at: ColumnType<Date | null, Date | null, Date | null>;
+  completed_at: ColumnType<Date | null, Date | null, Date | null>;
+}
+
+export type SelectExport = Selectable<ExportTable>;
+export type CreateExport = Insertable<ExportTable>;
+export type UpdateExport = Updateable<ExportTable>;
+
 export interface DatabaseSchema {
   accounts: AccountTable;
   devices: DeviceTable;
@@ -309,4 +326,5 @@ export interface DatabaseSchema {
   uploads: UploadTable;
   node_embeddings: NodeEmbeddingTable;
   document_embeddings: DocumentEmbeddingTable;
+  exports: ExportTable;
 }
