@@ -41,6 +41,7 @@ export const exportManifestSchema = z.object({
     nodeReactions: z.number(),
     nodeInteractions: z.number(),
     documentUpdates: z.number(),
+    uploads: z.number(),
   }),
   createdAt: z.string(),
 });
@@ -103,3 +104,17 @@ export const exportUserSchema = z.object({
 });
 
 export type ExportUser = z.infer<typeof exportUserSchema>;
+
+export const exportUploadSchema = z.object({
+  fileId: z.string(),
+  uploadId: z.string(),
+  mimeType: z.string(),
+  size: z.number(),
+  path: z.string(),
+  versionId: z.string(),
+  createdAt: z.string(),
+  createdBy: z.string(),
+  uploadedAt: z.string().optional(),
+});
+
+export type ExportUpload = z.infer<typeof exportUploadSchema>;

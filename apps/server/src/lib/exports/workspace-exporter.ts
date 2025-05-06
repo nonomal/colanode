@@ -5,6 +5,7 @@ import {
   ExportNodeInteraction,
   ExportNodeReaction,
   ExportNodeUpdate,
+  ExportUpload,
   ExportUser,
 } from '@colanode/core';
 import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -18,16 +19,20 @@ import { S3Zipper } from '@/lib/s3/s3-zipper';
 
 const READ_BATCH_SIZE = 500;
 const FILE_BATCH_SIZE = 10000;
+const FILE_BATCH_SIZE_LIMIT = 1024 * 1024 * 500; // 500MB
 const debug = createDebugger('workspace-exporter');
 
 export class WorkspaceExporter {
   private readonly dbExport: SelectExport;
   private readonly dbWorkspace: SelectWorkspace;
 
-  private readonly exportDirectory: string;
-  private readonly exportZipPath: string;
+  private readonly exportDir: string;
+  private readonly exportDataZipKey: string;
+  private readonly exportFilesZipPrefix: string;
   private readonly exportTempDirectory: string;
-  private readonly uploadedFileKeys: string[] = [];
+
+  private readonly dataFileKeys: string[] = [];
+  private readonly uploadFileKeys: string[][] = [];
 
   public readonly manifest: ExportManifest;
 
@@ -53,13 +58,15 @@ export class WorkspaceExporter {
         nodeReactions: 0,
         nodeInteractions: 0,
         documentUpdates: 0,
+        uploads: 0,
       },
       createdAt: new Date().toISOString(),
     };
 
-    this.exportDirectory = `exports/${this.dbExport.id}`;
-    this.exportZipPath = `${this.exportDirectory}/data.zip`;
-    this.exportTempDirectory = `${this.exportDirectory}/temp`;
+    this.exportDir = `exports/${this.dbExport.id}`;
+    this.exportDataZipKey = `${this.exportDir}/data.zip`;
+    this.exportFilesZipPrefix = `${this.exportDir}/files`;
+    this.exportTempDirectory = `${this.exportDir}/temp`;
   }
 
   public async export() {
@@ -68,6 +75,7 @@ export class WorkspaceExporter {
     await this.exportNodeReactions();
     await this.exportNodeInteractions();
     await this.exportDocumentUpdates();
+    await this.exportUploads();
 
     debug(
       `Saving manifest for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
@@ -75,19 +83,10 @@ export class WorkspaceExporter {
 
     await this.saveFile('manifest.json', this.manifest);
 
-    debug(
-      `Zipping files for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
-    );
+    await this.zipDataFiles();
+    await this.zipUploadFiles();
 
-    const s3Zipper = new S3Zipper({
-      s3: fileS3,
-      bucket: config.fileS3.bucketName,
-      inputKeys: this.uploadedFileKeys,
-      outputKey: this.exportZipPath,
-    });
-
-    await s3Zipper.zip();
-    await this.deleteFiles();
+    await this.deleteTempFiles();
   }
 
   private async exportUsers() {
@@ -391,6 +390,117 @@ export class WorkspaceExporter {
     );
   }
 
+  private async exportUploads() {
+    debug(
+      `Exporting uploads for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
+    );
+
+    let lastFileId: string | null = null;
+    let hasMore = true;
+    let part = 0;
+
+    const exportUploads: ExportUpload[] = [];
+    const fileKeys: string[] = [];
+    let filesSize = 0;
+
+    while (hasMore) {
+      const uploads = await database
+        .selectFrom('uploads')
+        .selectAll()
+        .$if(lastFileId !== null, (qb) => qb.where('file_id', '>', lastFileId))
+        .where('workspace_id', '=', this.dbWorkspace.id)
+        .orderBy('file_id', 'asc')
+        .limit(READ_BATCH_SIZE)
+        .execute();
+
+      if (uploads.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const upload of uploads) {
+        exportUploads.push({
+          fileId: upload.file_id,
+          uploadId: upload.upload_id,
+          mimeType: upload.mime_type,
+          size: upload.size,
+          path: upload.path,
+          versionId: upload.version_id,
+          createdAt: upload.created_at.toISOString(),
+          createdBy: upload.created_by,
+          uploadedAt: upload.uploaded_at?.toISOString(),
+        });
+
+        lastFileId = upload.file_id;
+        this.manifest.counts.uploads++;
+
+        if (exportUploads.length >= FILE_BATCH_SIZE) {
+          await this.saveFile(`uploads_${part}.json`, exportUploads);
+
+          exportUploads.splice(0, exportUploads.length);
+          part++;
+        }
+
+        if (upload.uploaded_at) {
+          fileKeys.push(upload.path);
+          filesSize += upload.size;
+
+          if (filesSize >= FILE_BATCH_SIZE_LIMIT) {
+            this.uploadFileKeys.push(fileKeys);
+            fileKeys.splice(0, fileKeys.length);
+            filesSize = 0;
+          }
+        }
+      }
+    }
+
+    if (exportUploads.length > 0) {
+      await this.saveFile(`uploads_${part}.json`, exportUploads);
+    }
+
+    debug(
+      `Exported ${this.manifest.counts.uploads} uploads in ${part} files for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
+    );
+  }
+
+  private async zipDataFiles() {
+    debug(
+      `Zipping data files for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
+    );
+
+    const s3Zipper = new S3Zipper({
+      s3: fileS3,
+      bucket: config.fileS3.bucketName,
+      inputKeys: this.dataFileKeys,
+      outputKey: this.exportDataZipKey,
+    });
+
+    await s3Zipper.zip();
+  }
+
+  private async zipUploadFiles() {
+    debug(
+      `Zipping upload files for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
+    );
+
+    for (let i = 0; i < this.uploadFileKeys.length; i++) {
+      const inputKeys = this.uploadFileKeys[i];
+      if (!inputKeys) {
+        continue;
+      }
+
+      const outputKey = `${this.exportFilesZipPrefix}_${i}.zip`;
+      const s3Zipper = new S3Zipper({
+        s3: fileS3,
+        bucket: config.fileS3.bucketName,
+        inputKeys,
+        outputKey,
+      });
+
+      await s3Zipper.zip();
+    }
+  }
+
   private async saveFile(path: string, content: unknown) {
     const filePath = `${this.exportTempDirectory}/${path}`;
     const json = JSON.stringify(content);
@@ -403,15 +513,15 @@ export class WorkspaceExporter {
     });
 
     await fileS3.send(putCommand);
-    this.uploadedFileKeys.push(filePath);
+    this.dataFileKeys.push(filePath);
   }
 
-  private async deleteFiles() {
+  private async deleteTempFiles() {
     debug(
       `Deleting files for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
     );
 
-    for (const key of this.uploadedFileKeys) {
+    for (const key of this.dataFileKeys) {
       const deleteCommand = new DeleteObjectCommand({
         Bucket: config.fileS3.bucketName,
         Key: key,
