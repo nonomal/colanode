@@ -8,7 +8,7 @@ import { embedDocumentHandler } from '@/jobs/embed-document';
 import { assistantResponseHandler } from '@/jobs/assistant-response';
 import { checkNodeEmbeddingsHandler } from '@/jobs/check-node-embeddings';
 import { checkDocumentEmbeddingsHandler } from '@/jobs/check-document-embeddings';
-import { generateExportHandler } from '@/jobs/generate-export';
+import { exportHandler } from '@/jobs/export';
 
 type JobHandlerMap = {
   [K in keyof JobMap]: JobHandler<JobMap[K]['input']>;
@@ -24,5 +24,5 @@ export const jobHandlerMap: JobHandlerMap = {
   assistant_response: assistantResponseHandler,
   check_node_embeddings: checkNodeEmbeddingsHandler,
   check_document_embeddings: checkDocumentEmbeddingsHandler,
-  generate_export: generateExportHandler,
+  export: exportHandler,
 };

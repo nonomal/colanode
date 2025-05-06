@@ -6,22 +6,22 @@ import { WorkspaceExporter } from '@/lib/exports/workspace-exporter';
 
 const debug = createDebugger('server:job:generate-export');
 
-export type GenerateExportInput = {
-  type: 'generate_export';
+export type ExportInput = {
+  type: 'export';
   id: string;
 };
 
 declare module '@/types/jobs' {
   interface JobMap {
-    generate_export: {
-      input: GenerateExportInput;
+    export: {
+      input: ExportInput;
     };
   }
 }
 
-export const generateExportHandler: JobHandler<GenerateExportInput> = async (
-  input
-) => {
+const MAX_UPDATE_INTERVAL = 1000 * 60 * 10; //10 minutes
+
+export const exportHandler: JobHandler<ExportInput> = async (input) => {
   debug(`Generating export ${input.id}`);
 
   const dbExport = await database
@@ -40,8 +40,22 @@ export const generateExportHandler: JobHandler<GenerateExportInput> = async (
     return;
   }
 
-  if (dbExport.status !== ExportStatus.Pending) {
-    debug(`Export ${input.id} is not pending`);
+  if (dbExport.status === ExportStatus.Completed) {
+    debug(`Export ${input.id} is already completed`);
+    return;
+  }
+
+  if (dbExport.status === ExportStatus.Failed) {
+    debug(`Export ${input.id} is marked as failed`);
+    return;
+  }
+
+  if (
+    dbExport.status === ExportStatus.Generating ||
+    (dbExport.updated_at &&
+      dbExport.updated_at > new Date(Date.now() - MAX_UPDATE_INTERVAL))
+  ) {
+    debug(`Export ${input.id} is still generating`);
     return;
   }
 
@@ -56,25 +70,6 @@ export const generateExportHandler: JobHandler<GenerateExportInput> = async (
     return;
   }
 
-  await database
-    .updateTable('exports')
-    .set({
-      status: ExportStatus.Generating,
-      started_at: new Date(),
-    })
-    .where('id', '=', dbExport.id)
-    .execute();
-
   const exporter = new WorkspaceExporter(dbExport, dbWorkspace);
   await exporter.export();
-
-  await database
-    .updateTable('exports')
-    .set({
-      status: ExportStatus.Completed,
-      completed_at: new Date(),
-      counts: JSON.stringify(exporter.manifest.counts),
-    })
-    .where('id', '=', dbExport.id)
-    .execute();
 };

@@ -298,10 +298,11 @@ interface ExportTable {
   type: ColumnType<string, string, string>;
   status: ColumnType<number, number, number>;
   counts: ColumnType<string | null, string | null, string | null>;
+  files: ColumnType<string | null, string | null, string | null>;
   created_at: ColumnType<Date, Date, never>;
   created_by: ColumnType<string, string, never>;
   started_at: ColumnType<Date | null, Date | null, Date | null>;
-  pinged_at: ColumnType<Date | null, Date | null, Date | null>;
+  updated_at: ColumnType<Date | null, Date | null, Date | null>;
   completed_at: ColumnType<Date | null, Date | null, Date | null>;
 }
 

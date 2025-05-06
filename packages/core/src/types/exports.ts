@@ -118,3 +118,10 @@ export const exportUploadSchema = z.object({
 });
 
 export type ExportUpload = z.infer<typeof exportUploadSchema>;
+
+export const exportFilesSchema = z.object({
+  data: z.string(),
+  files: z.array(z.string()),
+});
+
+export type ExportFiles = z.infer<typeof exportFilesSchema>;

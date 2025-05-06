@@ -1,10 +1,12 @@
 import {
   createDebugger,
   ExportDocumentUpdate,
+  ExportFiles,
   ExportManifest,
   ExportNodeInteraction,
   ExportNodeReaction,
   ExportNodeUpdate,
+  ExportStatus,
   ExportUpload,
   ExportUser,
 } from '@colanode/core';
@@ -87,6 +89,7 @@ export class WorkspaceExporter {
     await this.zipUploadFiles();
 
     await this.deleteTempFiles();
+    await this.completeExport();
   }
 
   private async exportUsers() {
@@ -138,6 +141,8 @@ export class WorkspaceExporter {
       await this.saveFile(`users.json`, exportUsers);
     }
 
+    await this.updateProgress();
+
     debug(
       `Exported ${this.manifest.counts.users} users for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
     );
@@ -183,6 +188,7 @@ export class WorkspaceExporter {
 
         if (exportNodeUpdates.length >= FILE_BATCH_SIZE) {
           await this.saveFile(`node_updates_${part}.json`, exportNodeUpdates);
+          await this.updateProgress();
 
           exportNodeUpdates.splice(0, exportNodeUpdates.length);
           part++;
@@ -192,6 +198,7 @@ export class WorkspaceExporter {
 
     if (exportNodeUpdates.length > 0) {
       await this.saveFile(`node_updates_${part}.json`, exportNodeUpdates);
+      await this.updateProgress();
     }
 
     debug(
@@ -248,6 +255,8 @@ export class WorkspaceExporter {
             exportNodeReactions
           );
 
+          await this.updateProgress();
+
           exportNodeReactions.splice(0, exportNodeReactions.length);
           part++;
         }
@@ -256,6 +265,7 @@ export class WorkspaceExporter {
 
     if (exportNodeReactions.length > 0) {
       await this.saveFile(`node_reactions_${part}.json`, exportNodeReactions);
+      await this.updateProgress();
     }
 
     debug(
@@ -310,6 +320,8 @@ export class WorkspaceExporter {
             exportNodeInteractions
           );
 
+          await this.updateProgress();
+
           exportNodeInteractions.splice(0, exportNodeInteractions.length);
           part++;
         }
@@ -321,6 +333,8 @@ export class WorkspaceExporter {
         `node_interactions_${part}.json`,
         exportNodeInteractions
       );
+
+      await this.updateProgress();
     }
 
     debug(
@@ -372,6 +386,8 @@ export class WorkspaceExporter {
             exportDocumentUpdates
           );
 
+          await this.updateProgress();
+
           exportDocumentUpdates.splice(0, exportDocumentUpdates.length);
           part++;
         }
@@ -383,6 +399,8 @@ export class WorkspaceExporter {
         `document_updates_${part}.json`,
         exportDocumentUpdates
       );
+
+      await this.updateProgress();
     }
 
     debug(
@@ -436,6 +454,7 @@ export class WorkspaceExporter {
 
         if (exportUploads.length >= FILE_BATCH_SIZE) {
           await this.saveFile(`uploads_${part}.json`, exportUploads);
+          await this.updateProgress();
 
           exportUploads.splice(0, exportUploads.length);
           part++;
@@ -456,6 +475,7 @@ export class WorkspaceExporter {
 
     if (exportUploads.length > 0) {
       await this.saveFile(`uploads_${part}.json`, exportUploads);
+      await this.updateProgress();
     }
 
     debug(
@@ -468,6 +488,8 @@ export class WorkspaceExporter {
       `Zipping data files for workspace ${this.dbWorkspace.id} and export ${this.dbExport.id}`
     );
 
+    await this.updateProgress();
+
     const s3Zipper = new S3Zipper({
       s3: fileS3,
       bucket: config.fileS3.bucketName,
@@ -476,6 +498,8 @@ export class WorkspaceExporter {
     });
 
     await s3Zipper.zip();
+
+    await this.updateProgress();
   }
 
   private async zipUploadFiles() {
@@ -490,6 +514,7 @@ export class WorkspaceExporter {
       }
 
       const outputKey = `${this.exportFilesZipPrefix}_${i}.zip`;
+
       const s3Zipper = new S3Zipper({
         s3: fileS3,
         bucket: config.fileS3.bucketName,
@@ -498,6 +523,8 @@ export class WorkspaceExporter {
       });
 
       await s3Zipper.zip();
+
+      await this.updateProgress();
     }
   }
 
@@ -529,5 +556,38 @@ export class WorkspaceExporter {
 
       await fileS3.send(deleteCommand);
     }
+  }
+
+  private async updateProgress() {
+    await database
+      .updateTable('exports')
+      .set({
+        status: ExportStatus.Generating,
+        updated_at: new Date(),
+        counts: JSON.stringify(this.manifest.counts),
+      })
+      .where('id', '=', this.dbExport.id)
+      .execute();
+  }
+
+  private async completeExport() {
+    const exportFiles: ExportFiles = {
+      data: this.exportDataZipKey,
+      files: this.uploadFileKeys.map(
+        (_, i) => `${this.exportFilesZipPrefix}_${i}.zip`
+      ),
+    };
+
+    await database
+      .updateTable('exports')
+      .set({
+        status: ExportStatus.Completed,
+        files: JSON.stringify(exportFiles),
+        counts: JSON.stringify(this.manifest.counts),
+        completed_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where('id', '=', this.dbExport.id)
+      .execute();
   }
 }

@@ -49,10 +49,21 @@ export const exportCreateRoute: FastifyPluginCallbackZod = (
         })
         .execute();
 
-      await jobService.addJob({
-        type: 'generate_export',
-        id,
-      });
+      await jobService.addJob(
+        {
+          type: 'export',
+          id,
+        },
+        {
+          delay: 100,
+          jobId: `export_${id}`,
+          attempts: 5,
+          backoff: {
+            type: 'exponential',
+            delay: 1000 * 60 * 10, //10 minutes
+          },
+        }
+      );
 
       return { id };
     },
