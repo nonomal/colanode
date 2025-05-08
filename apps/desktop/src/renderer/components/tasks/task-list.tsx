@@ -4,8 +4,8 @@ import { useQuery } from '@/renderer/hooks/use-query';
 import { useWorkspace } from '@/renderer/contexts/workspace';
 import { Button } from '@/renderer/components/ui/button';
 import { TaskCreateDialog } from '@/renderer/components/tasks/task-create-dialog';
-import { Spinner } from '@/renderer/components/ui/spinner';
 import { TaskCard } from '@/renderer/components/tasks/task-card';
+import { TaskCardSkeleton } from '@/renderer/components/tasks/task-card-skeleton';
 
 export const TaskList = () => {
   const workspace = useWorkspace();
@@ -30,10 +30,14 @@ export const TaskList = () => {
           <Button onClick={() => setShowCreateModal(true)}>Create task</Button>
         </div>
         <div className="flex flex-col gap-2">
-          {isPending && <Spinner className="h-4 w-4" />}
-          {tasks.map((t) => (
-            <TaskCard key={t.id} task={t} />
-          ))}
+          {isPending && (
+            <>
+              <TaskCardSkeleton />
+              <TaskCardSkeleton />
+              <TaskCardSkeleton />
+            </>
+          )}
+          {!isPending && tasks.map((t) => <TaskCard key={t.id} task={t} />)}
         </div>
       </div>
       <TaskCreateDialog
