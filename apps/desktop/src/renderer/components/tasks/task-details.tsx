@@ -20,8 +20,10 @@ interface TaskDetailsProps {
 }
 
 export const TaskDetails = ({ task, logs, artifacts }: TaskDetailsProps) => {
-  const duration = formatDuration(task.createdAt, task.completedAt);
-  const createdAtAgo = timeAgo(task.createdAt);
+  const startedAgo = task.startedAt ? timeAgo(task.startedAt) : 'Pending';
+  const duration = task.startedAt
+    ? formatDuration(task.startedAt, task.completedAt)
+    : '0s';
 
   return (
     <div className="grid grid-cols-5 gap-4">
@@ -54,7 +56,7 @@ export const TaskDetails = ({ task, logs, artifacts }: TaskDetailsProps) => {
                 <span className="text-xs text-muted-foreground">Started</span>
                 <div className="flex items-center gap-1">
                   <Calendar className="size-4" />
-                  <span className="font-semibold">{createdAtAgo}</span>
+                  <span className="font-semibold">{startedAgo}</span>
                 </div>
               </div>
               <div className="flex flex-col gap-1">

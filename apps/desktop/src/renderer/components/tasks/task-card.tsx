@@ -16,8 +16,10 @@ interface TaskCardProps {
 
 export const TaskCard = ({ task }: TaskCardProps) => {
   const layout = useLayout();
-  const duration = formatDuration(task.createdAt, task.completedAt);
-  const startedAgo = timeAgo(task.createdAt);
+  const startedAgo = task.startedAt ? timeAgo(task.startedAt) : 'Pending';
+  const duration = task.startedAt
+    ? formatDuration(task.startedAt, task.completedAt)
+    : '0s';
 
   return (
     <div className="flex flex-row items-center gap-4 rounded-lg border bg-card p-4 shadow-sm">

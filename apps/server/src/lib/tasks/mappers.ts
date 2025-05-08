@@ -12,6 +12,8 @@ export const mapTaskOutput = (task: SelectTask): TaskOutput => {
     createdAt: task.created_at.toISOString(),
     createdBy: task.created_by,
     completedAt: task.completed_at?.toISOString(),
+    startedAt: task.started_at?.toISOString(),
+    activeAt: task.active_at?.toISOString(),
     attributes: task.attributes,
   };
 };
@@ -35,5 +37,6 @@ export const mapTaskArtifactOutput = (
     size: artifact.size,
     mimeType: artifact.mime_type,
     createdAt: artifact.created_at.toISOString(),
+    expiresAt: artifact.expires_at?.toISOString(),
   };
 };

@@ -1,6 +1,7 @@
 import {
   TaskArtifactOutput,
   formatBytes,
+  formatDate,
   formatMimeType,
 } from '@colanode/core';
 import { Download, Link } from 'lucide-react';
@@ -35,7 +36,10 @@ export const TaskArtifacts = ({ artifacts }: TaskArtifactsProps) => {
           <div className="flex-grow">
             <div className="font-semibold text-base">{artifact.name}</div>
             <div className="text-xs text-muted-foreground">
-              {formatMimeType(artifact.mimeType)} - {formatBytes(artifact.size)}
+              {formatMimeType(artifact.mimeType)} - {formatBytes(artifact.size)}{' '}
+              {artifact.expiresAt
+                ? `- Expires ${formatDate(artifact.expiresAt)}`
+                : ''}
             </div>
           </div>
           <div className="flex items-center gap-1">

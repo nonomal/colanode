@@ -43,6 +43,7 @@ export class WorkspaceExport {
   private readonly exportDataZipKey: string;
   private readonly exportFilesZipPrefix: string;
   private readonly exportTempDirectory: string;
+  private readonly artifactExpireDate: Date;
 
   private readonly dataFileKeys: string[] = [];
   private readonly uploadFileKeys: string[][] = [];
@@ -81,6 +82,7 @@ export class WorkspaceExport {
     this.exportDataZipKey = `${this.taskDir}/data.zip`;
     this.exportFilesZipPrefix = `${this.taskDir}/files`;
     this.exportTempDirectory = `${this.taskDir}/temp`;
+    this.artifactExpireDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   }
 
   public async export() {
@@ -732,6 +734,7 @@ export class WorkspaceExport {
             size,
             path,
             created_at: new Date(),
+            expires_at: this.artifactExpireDate,
           })
           .executeTakeFirst();
 

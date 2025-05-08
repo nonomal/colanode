@@ -42,6 +42,8 @@ export const taskOutputSchema = z.object({
   workspaceId: z.string(),
   createdAt: z.string(),
   createdBy: z.string(),
+  startedAt: z.string().optional(),
+  activeAt: z.string().optional(),
   completedAt: z.string().optional(),
 });
 
@@ -69,6 +71,7 @@ export const taskArtifactOutputSchema = z.object({
   size: z.number(),
   mimeType: z.string(),
   createdAt: z.string(),
+  expiresAt: z.string().optional(),
 });
 
 export type TaskArtifactOutput = z.infer<typeof taskArtifactOutputSchema>;
