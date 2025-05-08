@@ -88,8 +88,8 @@ export class S3Zip {
       this.cancel(error);
     });
 
-    this.archiver.on('progress', (progress) => {
-      this.zipFileSize = progress.fs.processedBytes;
+    this.passThrough.on('data', (chunk) => {
+      this.zipFileSize += chunk.length;
     });
 
     this.passThrough.on('error', (error) => {
