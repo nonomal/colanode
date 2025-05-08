@@ -15,11 +15,14 @@ import { useAccount } from '@/renderer/contexts/account';
 import { useRadar } from '@/renderer/contexts/radar';
 import { useWorkspace } from '@/renderer/contexts/workspace';
 import { useQuery } from '@/renderer/hooks/use-query';
+import { useLayout } from '@/renderer/contexts/layout';
+import { SpecialContainerTabPath } from '@/shared/types/workspaces';
 
 export const SidebarMenuHeader = () => {
   const workspace = useWorkspace();
   const account = useAccount();
   const radar = useRadar();
+  const layout = useLayout();
 
   const [open, setOpen] = React.useState(false);
   const { data } = useQuery({
@@ -78,7 +81,7 @@ export const SidebarMenuHeader = () => {
         <DropdownMenuItem
           className="gap-2 p-2"
           onClick={() => {
-            workspace.openSettings();
+            layout.openLeft(SpecialContainerTabPath.WorkspaceSettings);
           }}
         >
           <Settings className="size-4" />

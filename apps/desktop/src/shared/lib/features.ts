@@ -2,6 +2,7 @@ import semver from 'semver';
 
 export const FeatureVersions = {
   'workspace-delete': semver.parse('0.1.5'),
+  tasks: semver.parse('0.1.7'),
 } as const;
 
 export type FeatureKey = keyof typeof FeatureVersions;

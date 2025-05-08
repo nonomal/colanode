@@ -1,3 +1,5 @@
+import { TaskArtifactOutput, TaskLogOutput, TaskOutput } from './tasks';
+
 import { SynchronizerInput, SynchronizerMap } from '../synchronizers';
 
 export type SynchronizerInputMessage = {
@@ -46,6 +48,28 @@ export type UserUpdatedMessage = {
   userId: string;
 };
 
+export type TaskCreatedMessage = {
+  type: 'task_created';
+  task: TaskOutput;
+};
+
+export type TaskUpdatedMessage = {
+  type: 'task_updated';
+  task: TaskOutput;
+};
+
+export type TaskLogCreatedMessage = {
+  type: 'task_log_created';
+  task: TaskOutput;
+  log: TaskLogOutput;
+};
+
+export type TaskArtifactCreatedMessage = {
+  type: 'task_artifact_created';
+  task: TaskOutput;
+  artifact: TaskArtifactOutput;
+};
+
 export type Message =
   | AccountUpdatedMessage
   | WorkspaceUpdatedMessage
@@ -53,4 +77,8 @@ export type Message =
   | UserCreatedMessage
   | UserUpdatedMessage
   | SynchronizerInputMessage
-  | SynchronizerOutputMessage<SynchronizerInput>;
+  | SynchronizerOutputMessage<SynchronizerInput>
+  | TaskCreatedMessage
+  | TaskUpdatedMessage
+  | TaskLogCreatedMessage
+  | TaskArtifactCreatedMessage;

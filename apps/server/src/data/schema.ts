@@ -7,6 +7,10 @@ import {
   DocumentType,
   DocumentContent,
   UpdateMergeMetadata,
+  TaskType,
+  TaskAttributes,
+  TaskArtifactType,
+  TaskLogLevel,
 } from '@colanode/core';
 import {
   ColumnType,
@@ -292,23 +296,52 @@ export type SelectDocumentEmbedding = Selectable<DocumentEmbeddingTable>;
 export type CreateDocumentEmbedding = Insertable<DocumentEmbeddingTable>;
 export type UpdateDocumentEmbedding = Updateable<DocumentEmbeddingTable>;
 
-interface ExportTable {
+interface TaskTable {
   id: ColumnType<string, string, never>;
   workspace_id: ColumnType<string, string, never>;
-  type: ColumnType<string, string, string>;
+  type: ColumnType<TaskType, never, never>;
+  name: ColumnType<string, string, string>;
+  description: ColumnType<string | null, string | null, string | null>;
+  attributes: JSONColumnType<TaskAttributes, string, string>;
   status: ColumnType<number, number, number>;
-  counts: ColumnType<string | null, string | null, string | null>;
-  files: ColumnType<string | null, string | null, string | null>;
   created_at: ColumnType<Date, Date, never>;
   created_by: ColumnType<string, string, never>;
   started_at: ColumnType<Date | null, Date | null, Date | null>;
-  updated_at: ColumnType<Date | null, Date | null, Date | null>;
+  active_at: ColumnType<Date | null, Date | null, Date | null>;
   completed_at: ColumnType<Date | null, Date | null, Date | null>;
 }
 
-export type SelectExport = Selectable<ExportTable>;
-export type CreateExport = Insertable<ExportTable>;
-export type UpdateExport = Updateable<ExportTable>;
+export type SelectTask = Selectable<TaskTable>;
+export type CreateTask = Insertable<TaskTable>;
+export type UpdateTask = Updateable<TaskTable>;
+
+interface TaskLogTable {
+  id: ColumnType<string, string, never>;
+  task_id: ColumnType<string, string, never>;
+  level: ColumnType<TaskLogLevel, TaskLogLevel, TaskLogLevel>;
+  message: ColumnType<string, string, string>;
+  created_at: ColumnType<Date, Date, never>;
+}
+
+export type SelectTaskLog = Selectable<TaskLogTable>;
+export type CreateTaskLog = Insertable<TaskLogTable>;
+export type UpdateTaskLog = Updateable<TaskLogTable>;
+
+interface TaskArtifactTable {
+  id: ColumnType<string, string, never>;
+  task_id: ColumnType<string, string, never>;
+  type: ColumnType<TaskArtifactType, TaskArtifactType>;
+  name: ColumnType<string, string, string>;
+  mime_type: ColumnType<string, string, string>;
+  size: ColumnType<number, number, number>;
+  path: ColumnType<string, string, string>;
+  created_at: ColumnType<Date, Date, never>;
+  expires_at: ColumnType<Date | null, Date | null, Date | null>;
+}
+
+export type SelectTaskArtifact = Selectable<TaskArtifactTable>;
+export type CreateTaskArtifact = Insertable<TaskArtifactTable>;
+export type UpdateTaskArtifact = Updateable<TaskArtifactTable>;
 
 export interface DatabaseSchema {
   accounts: AccountTable;
@@ -327,5 +360,7 @@ export interface DatabaseSchema {
   uploads: UploadTable;
   node_embeddings: NodeEmbeddingTable;
   document_embeddings: DocumentEmbeddingTable;
-  exports: ExportTable;
+  tasks: TaskTable;
+  task_logs: TaskLogTable;
+  task_artifacts: TaskArtifactTable;
 }

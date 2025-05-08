@@ -2,26 +2,25 @@ import { z } from 'zod';
 
 import { UserStatus, workspaceRoleSchema } from './workspaces';
 
-export const exportTypeSchema = z.enum(['workspace']);
-
-export type ExportType = z.infer<typeof exportTypeSchema>;
-
-export enum ExportStatus {
-  Pending = 0,
-  Generating = 1,
-  Completed = 2,
-  Failed = 3,
-}
-
-export const exportCreateInputSchema = z.object({
-  type: exportTypeSchema,
+export const exportCountsSchema = z.object({
+  users: z.number(),
+  nodeUpdates: z.number(),
+  nodeReactions: z.number(),
+  nodeInteractions: z.number(),
+  documentUpdates: z.number(),
+  uploads: z.number(),
 });
 
-export type ExportCreateInput = z.infer<typeof exportCreateInputSchema>;
+export type ExportCounts = z.infer<typeof exportCountsSchema>;
 
-export const exportCreateOutputSchema = z.object({
-  id: z.string(),
+export const exportFileSchema = z.object({
+  type: z.enum(['data', 'file', 'manifest']),
+  name: z.string(),
+  size: z.number(),
+  createdAt: z.string(),
 });
+
+export type ExportFile = z.infer<typeof exportFileSchema>;
 
 export const exportManifestSchema = z.object({
   id: z.string(),
@@ -35,14 +34,8 @@ export const exportManifestSchema = z.object({
     description: z.string().optional(),
     createdAt: z.string(),
   }),
-  counts: z.object({
-    users: z.number(),
-    nodeUpdates: z.number(),
-    nodeReactions: z.number(),
-    nodeInteractions: z.number(),
-    documentUpdates: z.number(),
-    uploads: z.number(),
-  }),
+  counts: exportCountsSchema,
+  files: z.array(exportFileSchema),
   createdAt: z.string(),
 });
 
@@ -118,10 +111,3 @@ export const exportUploadSchema = z.object({
 });
 
 export type ExportUpload = z.infer<typeof exportUploadSchema>;
-
-export const exportFilesSchema = z.object({
-  data: z.string(),
-  files: z.array(z.string()),
-});
-
-export type ExportFiles = z.infer<typeof exportFilesSchema>;

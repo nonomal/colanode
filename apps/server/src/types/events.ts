@@ -1,3 +1,5 @@
+import { TaskArtifactOutput, TaskLogOutput, TaskOutput } from '@colanode/core';
+
 export type NodeCreatedEvent = {
   type: 'node_created';
   nodeId: string;
@@ -139,6 +141,28 @@ export type DocumentUpdateCreatedEvent = {
   workspaceId: string;
 };
 
+export type TaskCreatedEvent = {
+  type: 'task_created';
+  task: TaskOutput;
+};
+
+export type TaskUpdatedEvent = {
+  type: 'task_updated';
+  task: TaskOutput;
+};
+
+export type TaskLogCreatedEvent = {
+  type: 'task_log_created';
+  task: TaskOutput;
+  log: TaskLogOutput;
+};
+
+export type TaskArtifactCreatedEvent = {
+  type: 'task_artifact_created';
+  task: TaskOutput;
+  artifact: TaskArtifactOutput;
+};
+
 export type Event =
   | NodeCreatedEvent
   | NodeUpdatedEvent
@@ -160,4 +184,8 @@ export type Event =
   | FileDeletedEvent
   | FileInteractionUpdatedEvent
   | DocumentUpdatedEvent
-  | DocumentUpdateCreatedEvent;
+  | DocumentUpdateCreatedEvent
+  | TaskCreatedEvent
+  | TaskUpdatedEvent
+  | TaskLogCreatedEvent
+  | TaskArtifactCreatedEvent;

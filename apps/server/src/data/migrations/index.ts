@@ -19,7 +19,9 @@ import { createUserAccountIdIndex } from './00016-create-user-account-id-index';
 import { createVectorExtension } from './00017-create-vector-extension';
 import { createNodeEmbeddingsTable } from './00018-create-node-embeddings-table';
 import { createDocumentEmbeddingsTable } from './00019-create-document-embeddings-table';
-import { createExportsTable } from './00020-create-exports-table';
+import { createTasksTable } from './00020-create-tasks-table';
+import { createTaskLogsTable } from './00021-create-task-logs-table';
+import { createTaskArtifactsTable } from './00022-create-task-artifacts-table';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -41,5 +43,7 @@ export const databaseMigrations: Record<string, Migration> = {
   '00017_create_vector_extension': createVectorExtension,
   '00018_create_node_embeddings_table': createNodeEmbeddingsTable,
   '00019_create_document_embeddings_table': createDocumentEmbeddingsTable,
-  '00020_create_exports_table': createExportsTable,
+  '00020_create_tasks_table': createTasksTable,
+  '00021_create_task_logs_table': createTaskLogsTable,
+  '00022_create_task_artifacts_table': createTaskArtifactsTable,
 };

@@ -36,6 +36,8 @@ import { DocumentStateGetQueryHandler } from '@/main/queries/documents/document-
 import { DocumentUpdatesListQueryHandler } from '@/main/queries/documents/document-update-list';
 import { AccountMetadataListQueryHandler } from '@/main/queries/accounts/account-metadata-list';
 import { WorkspaceMetadataListQueryHandler } from '@/main/queries/workspaces/workspace-metadata-list';
+import { TaskListQueryHandler } from '@/main/queries/tasks/task-list';
+import { TaskGetQueryHandler } from '@/main/queries/tasks/task-get';
 import { QueryHandler } from '@/main/lib/types';
 import { QueryMap } from '@/shared/queries';
 
@@ -82,4 +84,6 @@ export const queryHandlerMap: QueryHandlerMap = {
   document_state_get: new DocumentStateGetQueryHandler(),
   document_updates_list: new DocumentUpdatesListQueryHandler(),
   account_metadata_list: new AccountMetadataListQueryHandler(),
+  task_list: new TaskListQueryHandler(),
+  task_get: new TaskGetQueryHandler(),
 };

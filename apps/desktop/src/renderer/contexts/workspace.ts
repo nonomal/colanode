@@ -7,7 +7,6 @@ import {
 } from '@/shared/types/workspaces';
 
 interface WorkspaceContext extends Workspace {
-  openSettings: () => void;
   getMetadata: <K extends WorkspaceMetadataKey>(
     key: K
   ) => WorkspaceMetadataMap[K] | undefined;

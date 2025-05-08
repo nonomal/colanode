@@ -10,6 +10,7 @@ import {
   createDebugger,
   extractFileSubtype,
   generateId,
+  formatBytes,
 } from '@colanode/core';
 import axios from 'axios';
 import ms from 'ms';
@@ -31,7 +32,6 @@ import { WorkspaceService } from '@/main/services/workspaces/workspace-service';
 import { EventLoop } from '@/main/lib/event-loop';
 import { SelectFileState, SelectNode } from '@/main/databases/workspace';
 import { MutationError, MutationErrorCode } from '@/shared/mutations';
-import { formatBytes } from '@/shared/lib/files';
 import { LocalFileNode } from '@/shared/types/nodes';
 
 const UPLOAD_RETRIES_LIMIT = 10;

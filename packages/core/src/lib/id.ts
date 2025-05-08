@@ -38,7 +38,9 @@ export enum IdType {
   Block = 'bl',
   OtpCode = 'ot',
   Mention = 'me',
-  Export = 'ex',
+  Task = 'tk',
+  TaskLog = 'tl',
+  TaskArtifact = 'ta',
 }
 
 export const generateId = (type: IdType): string => {

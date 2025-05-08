@@ -1,7 +1,4 @@
-import React from 'react';
-
 import { Layout } from '@/renderer/components/layouts/layout';
-import { WorkspaceSettingsDialog } from '@/renderer/components/workspaces/workspace-settings-dialog';
 import { useAccount } from '@/renderer/contexts/account';
 import { WorkspaceContext } from '@/renderer/contexts/workspace';
 import { useQuery } from '@/renderer/hooks/use-query';
@@ -17,7 +14,6 @@ interface WorkspaceProps {
 
 export const Workspace = ({ workspace }: WorkspaceProps) => {
   const account = useAccount();
-  const [openSettings, setOpenSettings] = React.useState(false);
 
   const { data: metadata, isPending: isPendingMetadata } = useQuery({
     type: 'workspace_metadata_list',
@@ -33,9 +29,6 @@ export const Workspace = ({ workspace }: WorkspaceProps) => {
     <WorkspaceContext.Provider
       value={{
         ...workspace,
-        openSettings() {
-          setOpenSettings(true);
-        },
         getMetadata<K extends WorkspaceMetadataKey>(key: K) {
           const value = metadata?.find((m) => m.key === key);
           if (!value) {
@@ -71,12 +64,6 @@ export const Workspace = ({ workspace }: WorkspaceProps) => {
       }}
     >
       <Layout key={workspace.id} />
-      {openSettings && (
-        <WorkspaceSettingsDialog
-          open={openSettings}
-          onOpenChange={() => setOpenSettings(false)}
-        />
-      )}
     </WorkspaceContext.Provider>
   );
 };

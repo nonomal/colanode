@@ -1,15 +1,15 @@
 import { createContext, useContext } from 'react';
 
 interface LayoutContextProps {
-  preview: (id: string, keepCurrent?: boolean) => void;
-  previewLeft: (id: string, keepCurrent?: boolean) => void;
-  previewRight: (id: string, keepCurrent?: boolean) => void;
-  open: (id: string) => void;
-  openLeft: (id: string) => void;
-  openRight: (id: string) => void;
-  close: (id: string) => void;
-  closeLeft: (id: string) => void;
-  closeRight: (id: string) => void;
+  preview: (tab: string, keepCurrent?: boolean) => void;
+  previewLeft: (tab: string, keepCurrent?: boolean) => void;
+  previewRight: (tab: string, keepCurrent?: boolean) => void;
+  open: (tab: string) => void;
+  openLeft: (tab: string) => void;
+  openRight: (tab: string) => void;
+  close: (tab: string) => void;
+  closeLeft: (tab: string) => void;
+  closeRight: (tab: string) => void;
   activeTab?: string;
 }
 

@@ -46,6 +46,7 @@ export enum ApiErrorCode {
   TokenMissing = 'token_missing',
   TokenInvalid = 'token_invalid',
   RootNotFound = 'root_not_found',
+  TaskCreateFailed = 'task_create_failed',
 
   ValidationError = 'validation_error',
   TooManyRequests = 'too_many_requests',
@@ -62,3 +63,11 @@ export const apiErrorOutputSchema = z.object({
 });
 
 export type ApiErrorOutput = z.infer<typeof apiErrorOutputSchema>;
+
+export const apiListBaseOutputSchema = z.object({
+  hasMore: z.boolean(),
+  nextCursor: z.string().optional(),
+  limit: z.number(),
+});
+
+export type ApiListBaseOutput = z.infer<typeof apiListBaseOutputSchema>;

@@ -34,7 +34,7 @@ const DEFAULT_MAX_PART_SIZE = 10 * 1024 * 1024; //10MB
 const DEFAULT_MAX_PARALLEL_FILES = 3;
 const debug = createDebugger('s3-zipper');
 
-export class S3Zipper {
+export class S3Zip {
   private readonly s3: S3Client;
   private readonly bucket: string;
   private readonly inputKeys: string[];
@@ -50,6 +50,9 @@ export class S3Zipper {
   private partNumber = 1;
   private readonly completedParts: CompletedPart[] = [];
 
+  private readonly zipFileName: string;
+  private zipFileSize = 0;
+
   constructor(options: S3ArchiverOptions) {
     this.s3 = options.s3;
     this.bucket = options.bucket;
@@ -59,6 +62,8 @@ export class S3Zipper {
     this.filesLimit = PLimit(
       options.maxParallelFiles ?? DEFAULT_MAX_PARALLEL_FILES
     );
+
+    this.zipFileName = path.basename(this.outputKey);
 
     this.archiver = archiver('zip', { zlib: { level: 9 } });
     this.passThrough = new PassThrough();
@@ -83,6 +88,10 @@ export class S3Zipper {
       this.cancel(error);
     });
 
+    this.archiver.on('progress', (progress) => {
+      this.zipFileSize = progress.fs.processedBytes;
+    });
+
     this.passThrough.on('error', (error) => {
       debug(`Pass through error: ${error}`);
       this.cancel(error);
@@ -103,6 +112,11 @@ export class S3Zipper {
       await this.completeMultipartUpload();
 
       this.passThrough.end();
+
+      return {
+        zipFileSize: this.zipFileSize,
+        zipFileName: this.zipFileName,
+      };
     } catch (error) {
       await this.cancel(error as Error);
       throw error;

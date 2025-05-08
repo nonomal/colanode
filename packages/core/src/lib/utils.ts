@@ -208,3 +208,14 @@ export const hashCode = (str: string) => {
   }
   return hash;
 };
+
+export const formatDuration = (startDate: string, endDate?: string) => {
+  const start = new Date(startDate);
+  const end = endDate ? new Date(endDate) : new Date();
+  const durationMs = end.getTime() - start.getTime();
+  const seconds = Math.floor(durationMs / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
+};

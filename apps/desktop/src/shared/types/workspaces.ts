@@ -12,6 +12,10 @@ export type Workspace = {
   storageLimit: string;
 };
 
+export enum SpecialContainerTabPath {
+  WorkspaceSettings = 'workspace/settings',
+}
+
 export type ContainerTab = {
   path: string;
   preview?: boolean;

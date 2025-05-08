@@ -16,11 +16,7 @@ import {
 import { Spinner } from '@/renderer/components/ui/spinner';
 import { useServer } from '@/renderer/contexts/server';
 
-interface WorkspaceDeleteProps {
-  onDeleted: () => void;
-}
-
-export const WorkspaceDelete = ({ onDeleted }: WorkspaceDeleteProps) => {
+export const WorkspaceDelete = () => {
   const server = useServer();
   const workspace = useWorkspace();
   const { mutate, isPending } = useMutation();
@@ -87,7 +83,6 @@ export const WorkspaceDelete = ({ onDeleted }: WorkspaceDeleteProps) => {
                   },
                   onSuccess() {
                     setShowDeleteModal(false);
-                    onDeleted();
                     toast({
                       title: 'Workspace deleted',
                       description: 'Workspace was deleted successfully',

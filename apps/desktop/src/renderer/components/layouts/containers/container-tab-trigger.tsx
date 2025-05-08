@@ -5,7 +5,10 @@ import { X } from 'lucide-react';
 import { useDrag, useDrop } from 'react-dnd';
 
 import { TabsTrigger } from '@/renderer/components/ui/tabs';
-import { ContainerTab } from '@/shared/types/workspaces';
+import {
+  ContainerTab,
+  SpecialContainerTabPath,
+} from '@/shared/types/workspaces';
 import { cn } from '@/shared/lib/utils';
 import { SpaceContainerTab } from '@/renderer/components/spaces/space-container-tab';
 import { ChannelContainerTab } from '@/renderer/components/channels/channel-container-tab';
@@ -16,6 +19,8 @@ import { FolderContainerTab } from '@/renderer/components/folders/folder-contain
 import { ChatContainerTab } from '@/renderer/components/chats/chat-container-tab';
 import { PageContainerTab } from '@/renderer/components/pages/page-container-tab';
 import { MessageContainerTab } from '@/renderer/components/messages/message-container-tab';
+import { TaskContainerTab } from '@/renderer/components/tasks/task-container-tab';
+import { WorkspaceSettingsContainerTab } from '@/renderer/components/workspaces/workspace-settings-container-tab';
 
 interface ContainerTabTriggerProps {
   tab: ContainerTab;
@@ -86,6 +91,9 @@ export const ContainerTabTrigger = ({
       ref={dragDropRef as React.LegacyRef<HTMLButtonElement>}
     >
       <div className="overflow-hidden truncate">
+        {tab.path === SpecialContainerTabPath.WorkspaceSettings && (
+          <WorkspaceSettingsContainerTab />
+        )}
         {match(getIdType(tab.path))
           .with(IdType.Space, () => <SpaceContainerTab spaceId={tab.path} />)
           .with(IdType.Channel, () => (
@@ -109,6 +117,12 @@ export const ContainerTabTrigger = ({
           .with(IdType.File, () => <FileContainerTab fileId={tab.path} />)
           .with(IdType.Message, () => (
             <MessageContainerTab messageId={tab.path} />
+          ))
+          .with(IdType.Task, () => (
+            <TaskContainerTab
+              taskId={tab.path}
+              isActive={tab.active ?? false}
+            />
           ))
           .otherwise(() => null)}
       </div>

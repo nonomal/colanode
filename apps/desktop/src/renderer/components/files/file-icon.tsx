@@ -1,4 +1,12 @@
-import { File, FileAudio, FileImage, FileText,FileVideo } from 'lucide-react';
+import {
+  File,
+  FileArchive,
+  FileAudio,
+  FileImage,
+  FileJson,
+  FileText,
+  FileVideo,
+} from 'lucide-react';
 
 interface FileIconProps {
   mimeType: string;
@@ -6,6 +14,14 @@ interface FileIconProps {
 }
 
 export const FileIcon = ({ mimeType, className }: FileIconProps) => {
+  if (mimeType === 'application/json') {
+    return <FileJson className={className} />;
+  }
+
+  if (mimeType === 'application/zip') {
+    return <FileArchive className={className} />;
+  }
+
   if (mimeType.startsWith('image')) {
     return <FileImage className={className} />;
   }

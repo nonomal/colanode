@@ -1,7 +1,10 @@
 import { match } from 'ts-pattern';
 import { getIdType, IdType } from '@colanode/core';
 
-import { ContainerTab } from '@/shared/types/workspaces';
+import {
+  ContainerTab,
+  SpecialContainerTabPath,
+} from '@/shared/types/workspaces';
 import { TabsContent } from '@/renderer/components/ui/tabs';
 import { SpaceContainer } from '@/renderer/components/spaces/space-container';
 import { ChannelContainer } from '@/renderer/components/channels/channel-container';
@@ -12,6 +15,8 @@ import { FolderContainer } from '@/renderer/components/folders/folder-container'
 import { PageContainer } from '@/renderer/components/pages/page-container';
 import { RecordContainer } from '@/renderer/components/records/record-container';
 import { MessageContainer } from '@/renderer/components/messages/message-container';
+import { TaskContainer } from '@/renderer/components/tasks/task-container';
+import { WorkspaceSettingsContainer } from '@/renderer/components/workspaces/workspace-settings-container';
 
 interface ContainerTabContentProps {
   tab: ContainerTab;
@@ -24,6 +29,9 @@ export const ContainerTabContent = ({ tab }: ContainerTabContentProps) => {
       key={tab.path}
       className="h-full min-h-full w-full min-w-full m-0 pt-2"
     >
+      {tab.path === SpecialContainerTabPath.WorkspaceSettings && (
+        <WorkspaceSettingsContainer />
+      )}
       {match(getIdType(tab.path))
         .with(IdType.Space, () => <SpaceContainer spaceId={tab.path} />)
         .with(IdType.Channel, () => <ChannelContainer channelId={tab.path} />)
@@ -36,6 +44,7 @@ export const ContainerTabContent = ({ tab }: ContainerTabContentProps) => {
         .with(IdType.Folder, () => <FolderContainer folderId={tab.path} />)
         .with(IdType.File, () => <FileContainer fileId={tab.path} />)
         .with(IdType.Message, () => <MessageContainer messageId={tab.path} />)
+        .with(IdType.Task, () => <TaskContainer taskId={tab.path} />)
         .otherwise(() => null)}
     </TabsContent>
   );

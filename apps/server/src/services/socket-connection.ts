@@ -98,6 +98,40 @@ export class SocketConnection {
       this.handleUserCreatedEvent(event);
     } else if (event.type === 'user_updated') {
       this.handleUserUpdatedEvent(event);
+    } else if (
+      event.type === 'task_created' &&
+      this.users.has(event.task.createdBy)
+    ) {
+      this.sendMessage({
+        type: 'task_created',
+        task: event.task,
+      });
+    } else if (
+      event.type === 'task_updated' &&
+      this.users.has(event.task.createdBy)
+    ) {
+      this.sendMessage({
+        type: 'task_updated',
+        task: event.task,
+      });
+    } else if (
+      event.type === 'task_log_created' &&
+      this.users.has(event.task.createdBy)
+    ) {
+      this.sendMessage({
+        type: 'task_log_created',
+        task: event.task,
+        log: event.log,
+      });
+    } else if (
+      event.type === 'task_artifact_created' &&
+      this.users.has(event.task.createdBy)
+    ) {
+      this.sendMessage({
+        type: 'task_artifact_created',
+        task: event.task,
+        artifact: event.artifact,
+      });
     }
 
     for (const user of this.users.values()) {

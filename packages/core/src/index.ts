@@ -37,3 +37,5 @@ export * from './lib/mentions';
 export * from './types/mentions';
 export * from './types/avatars';
 export * from './types/exports';
+export * from './types/tasks';
+export * from './lib/tasks';
