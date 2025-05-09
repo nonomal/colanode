@@ -10,6 +10,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '@/lib/config';
 import { fileS3 } from '@/data/storage';
 
+const DEFAULT_PRESIGNED_URL_EXPIRATION = 60 * 60 * 4; // 4 hours
+
 export const buildFilePath = (
   workspaceId: string,
   fileId: string,
@@ -21,7 +23,8 @@ export const buildFilePath = (
 export const buildUploadUrl = async (
   path: string,
   size: number,
-  mimeType: string
+  mimeType: string,
+  expiresIn?: number
 ) => {
   const command = new PutObjectCommand({
     Bucket: config.fileS3.bucketName,
@@ -30,22 +33,21 @@ export const buildUploadUrl = async (
     ContentType: mimeType,
   });
 
-  const expiresIn = 60 * 60 * 4; // 4 hours
   const presignedUrl = await getSignedUrl(fileS3, command, {
-    expiresIn,
+    expiresIn: expiresIn ?? DEFAULT_PRESIGNED_URL_EXPIRATION,
   });
 
   return presignedUrl;
 };
 
-export const buildDownloadUrl = async (path: string) => {
+export const buildDownloadUrl = async (path: string, expiresIn?: number) => {
   const command = new GetObjectCommand({
     Bucket: config.fileS3.bucketName,
     Key: path,
   });
 
   const presignedUrl = await getSignedUrl(fileS3, command, {
-    expiresIn: 60 * 60 * 4, // 4 hours
+    expiresIn: expiresIn ?? DEFAULT_PRESIGNED_URL_EXPIRATION,
   });
 
   return presignedUrl;

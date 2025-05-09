@@ -26,8 +26,17 @@ export type ExportWorkspaceTaskAttributes = z.infer<
   typeof exportWorkspaceTaskAttributesSchema
 >;
 
+export const importWorkspaceTaskAttributesSchema = z.object({
+  type: z.literal('import_workspace'),
+});
+
+export type ImportWorkspaceTaskAttributes = z.infer<
+  typeof importWorkspaceTaskAttributesSchema
+>;
+
 export const taskAttributesSchema = z.discriminatedUnion('type', [
   exportWorkspaceTaskAttributesSchema,
+  importWorkspaceTaskAttributesSchema,
 ]);
 
 export type TaskAttributes = z.infer<typeof taskAttributesSchema>;

@@ -5,6 +5,7 @@ import {
   createDebugger,
   CreateNodeMutationData,
   extractNodeCollaborators,
+  extractNodeParentId,
   generateId,
   getNodeModel,
   IdType,
@@ -369,12 +370,7 @@ export const createNodeFromMutation = async (
   const ydoc = new YDoc(mutation.data);
   const attributes = ydoc.getObject<NodeAttributes>();
   const model = getNodeModel(attributes.type);
-
-  let parentId: string | null = null;
-
-  if (attributes.type !== 'space' && attributes.type !== 'chat') {
-    parentId = attributes.parentId;
-  }
+  const parentId = extractNodeParentId(attributes);
 
   const tree = parentId ? await fetchNodeTree(parentId) : [];
   const canCreateNodeContext: CanCreateNodeContext = {

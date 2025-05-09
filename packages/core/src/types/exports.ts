@@ -13,15 +13,6 @@ export const exportCountsSchema = z.object({
 
 export type ExportCounts = z.infer<typeof exportCountsSchema>;
 
-export const exportFileSchema = z.object({
-  type: z.enum(['data', 'file', 'manifest']),
-  name: z.string(),
-  size: z.number(),
-  createdAt: z.string(),
-});
-
-export type ExportFile = z.infer<typeof exportFileSchema>;
-
 export const exportManifestSchema = z.object({
   id: z.string(),
   server: z.object({
@@ -35,7 +26,6 @@ export const exportManifestSchema = z.object({
     createdAt: z.string(),
   }),
   counts: exportCountsSchema,
-  files: z.array(exportFileSchema),
   createdAt: z.string(),
 });
 
@@ -108,6 +98,7 @@ export const exportUploadSchema = z.object({
   createdAt: z.string(),
   createdBy: z.string(),
   uploadedAt: z.string().optional(),
+  url: z.string().optional(),
 });
 
 export type ExportUpload = z.infer<typeof exportUploadSchema>;

@@ -28,6 +28,8 @@ export const formatTaskType = (type: TaskType) => {
   switch (type) {
     case 'export_workspace':
       return 'Export Workspace';
+    case 'import_workspace':
+      return 'Import Workspace';
     default:
       return type;
   }

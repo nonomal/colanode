@@ -14,7 +14,7 @@ import PLimit, { LimitFunction } from 'p-limit';
 import path from 'path';
 import { PassThrough, Readable } from 'stream';
 
-interface S3ArchiverOptions {
+interface S3ZipOptions {
   s3: S3Client;
   bucket: string;
   inputKeys: string[];
@@ -32,7 +32,7 @@ interface FilePromise {
 
 const DEFAULT_MAX_PART_SIZE = 10 * 1024 * 1024; //10MB
 const DEFAULT_MAX_PARALLEL_FILES = 3;
-const debug = createDebugger('s3-zipper');
+const debug = createDebugger('s3-zip');
 
 export class S3Zip {
   private readonly s3: S3Client;
@@ -53,7 +53,7 @@ export class S3Zip {
   private readonly zipFileName: string;
   private zipFileSize = 0;
 
-  constructor(options: S3ArchiverOptions) {
+  constructor(options: S3ZipOptions) {
     this.s3 = options.s3;
     this.bucket = options.bucket;
     this.inputKeys = options.inputKeys;

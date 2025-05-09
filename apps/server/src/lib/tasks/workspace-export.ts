@@ -29,10 +29,10 @@ import { database } from '@/data/database';
 import { fileS3 } from '@/data/storage';
 import { S3Zip } from '@/lib/tasks/s3-zip';
 import { eventBus } from '@/lib/event-bus';
+import { buildDownloadUrl } from '@/lib/files';
 
 const READ_BATCH_SIZE = 500;
 const FILE_BATCH_SIZE = 10000;
-const FILE_BATCH_SIZE_LIMIT = 1024 * 1024 * 500; // 500MB
 const debug = createDebugger('workspace-exporter');
 
 export class WorkspaceExport {
@@ -40,15 +40,11 @@ export class WorkspaceExport {
   private readonly workspace: SelectWorkspace;
 
   private readonly taskDir: string;
-  private readonly exportDataZipKey: string;
-  private readonly exportFilesZipPrefix: string;
+  private readonly exportZipKey: string;
   private readonly exportTempDirectory: string;
   private readonly artifactExpireDate: Date;
-
-  private readonly dataFileKeys: string[] = [];
-  private readonly uploadFileKeys: string[][] = [];
-
-  public readonly manifest: ExportManifest;
+  private readonly fileKeys: string[] = [];
+  private readonly manifest: ExportManifest;
 
   constructor(dbTask: SelectTask, dbWorkspace: SelectWorkspace) {
     this.task = dbTask;
@@ -74,43 +70,31 @@ export class WorkspaceExport {
         documentUpdates: 0,
         uploads: 0,
       },
-      files: [],
       createdAt: new Date().toISOString(),
     };
 
     this.taskDir = `tasks/${this.task.id}`;
-    this.exportDataZipKey = `${this.taskDir}/data.zip`;
-    this.exportFilesZipPrefix = `${this.taskDir}/files`;
+    this.exportZipKey = `${this.taskDir}/data.zip`;
     this.exportTempDirectory = `${this.taskDir}/temp`;
     this.artifactExpireDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   }
 
   public async export() {
     await this.startTask();
-
     await this.exportUsers();
     await this.exportNodeUpdates();
     await this.exportNodeReactions();
     await this.exportNodeInteractions();
     await this.exportDocumentUpdates();
     await this.exportUploads();
-
-    debug(
-      `Saving manifest for workspace ${this.workspace.id} and task ${this.task.id}`
-    );
-
-    await this.saveDataFile('manifest.json', this.manifest);
-
-    await this.zipDataFiles();
-    await this.zipUploadFiles();
     await this.saveManifest();
-
+    await this.zipFiles();
     await this.deleteTempFiles();
     await this.completeTask();
   }
 
   private async exportUsers() {
-    await this.saveLog(TaskLogLevel.Info, 'Exporting users');
+    await this.saveLog(TaskLogLevel.Info, 'Exporting users.');
 
     let lastUserId: string | null = null;
     let hasMore = true;
@@ -153,21 +137,21 @@ export class WorkspaceExport {
     }
 
     if (exportUsers.length > 0) {
-      await this.saveDataFile(`users.json`, exportUsers);
+      await this.saveJsonFile(`users.json`, exportUsers);
     }
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Finished exporting users. Total users: ${this.manifest.counts.users.toLocaleString()}`
+      `Exported ${this.manifest.counts.users.toLocaleString()} users.`
     );
   }
 
   private async exportNodeUpdates() {
-    await this.saveLog(TaskLogLevel.Info, 'Exporting node updates');
+    await this.saveLog(TaskLogLevel.Info, 'Exporting node updates.');
 
     let lastUpdateId: string | null = null;
     let hasMore = true;
-    let part = 0;
+    let part = 1;
 
     const exportNodeUpdates: ExportNodeUpdate[] = [];
 
@@ -199,13 +183,13 @@ export class WorkspaceExport {
         this.manifest.counts.nodeUpdates++;
 
         if (exportNodeUpdates.length >= FILE_BATCH_SIZE) {
-          await this.saveDataFile(
+          await this.saveJsonFile(
             `node_updates_${part}.json`,
             exportNodeUpdates
           );
           await this.saveLog(
             TaskLogLevel.Info,
-            `Exported part ${part} of node updates. Total node updates: ${this.manifest.counts.nodeUpdates.toLocaleString()}`
+            `Exported part ${part} of node updates.`
           );
 
           exportNodeUpdates.splice(0, exportNodeUpdates.length);
@@ -215,25 +199,25 @@ export class WorkspaceExport {
     }
 
     if (exportNodeUpdates.length > 0) {
-      await this.saveDataFile(`node_updates_${part}.json`, exportNodeUpdates);
+      await this.saveJsonFile(`node_updates_${part}.json`, exportNodeUpdates);
       await this.saveLog(
         TaskLogLevel.Info,
-        `Exported part ${part} of node updates. Total node updates: ${this.manifest.counts.nodeUpdates.toLocaleString()}`
+        `Exported part ${part} of node updates.`
       );
     }
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Finished exporting node updates. Total node updates: ${this.manifest.counts.nodeUpdates.toLocaleString()}`
+      `Exported ${this.manifest.counts.nodeUpdates.toLocaleString()} node updates.`
     );
   }
 
   private async exportNodeReactions() {
-    await this.saveLog(TaskLogLevel.Info, 'Exporting node reactions');
+    await this.saveLog(TaskLogLevel.Info, 'Exporting node reactions.');
 
     let lastRevision: string | null = null;
     let hasMore = true;
-    let part = 0;
+    let part = 1;
 
     const exportNodeReactions: ExportNodeReaction[] = [];
 
@@ -270,14 +254,14 @@ export class WorkspaceExport {
         this.manifest.counts.nodeReactions++;
 
         if (exportNodeReactions.length >= FILE_BATCH_SIZE) {
-          await this.saveDataFile(
+          await this.saveJsonFile(
             `node_reactions_${part}.json`,
             exportNodeReactions
           );
 
           await this.saveLog(
             TaskLogLevel.Info,
-            `Exported part ${part} of node reactions. Total node reactions: ${this.manifest.counts.nodeReactions.toLocaleString()}`
+            `Exported part ${part} of node reactions.`
           );
 
           exportNodeReactions.splice(0, exportNodeReactions.length);
@@ -287,28 +271,28 @@ export class WorkspaceExport {
     }
 
     if (exportNodeReactions.length > 0) {
-      await this.saveDataFile(
+      await this.saveJsonFile(
         `node_reactions_${part}.json`,
         exportNodeReactions
       );
       await this.saveLog(
         TaskLogLevel.Info,
-        `Exported part ${part} of node reactions. Total node reactions: ${this.manifest.counts.nodeReactions.toLocaleString()}`
+        `Exported part ${part} of node reactions.`
       );
     }
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Finished exporting node reactions. Total node reactions: ${this.manifest.counts.nodeReactions.toLocaleString()}`
+      `Exported ${this.manifest.counts.nodeReactions.toLocaleString()} node reactions.`
     );
   }
 
   private async exportNodeInteractions() {
-    await this.saveLog(TaskLogLevel.Info, 'Exporting node interactions');
+    await this.saveLog(TaskLogLevel.Info, 'Exporting node interactions.');
 
     let lastRevision: string | null = null;
     let hasMore = true;
-    let part = 0;
+    let part = 1;
 
     const exportNodeInteractions: ExportNodeInteraction[] = [];
 
@@ -343,14 +327,14 @@ export class WorkspaceExport {
         this.manifest.counts.nodeInteractions++;
 
         if (exportNodeInteractions.length >= FILE_BATCH_SIZE) {
-          await this.saveDataFile(
+          await this.saveJsonFile(
             `node_interactions_${part}.json`,
             exportNodeInteractions
           );
 
           await this.saveLog(
             TaskLogLevel.Info,
-            `Exported part ${part} of node interactions. Total node interactions: ${this.manifest.counts.nodeInteractions.toLocaleString()}`
+            `Exported part ${part} of node interactions.`
           );
 
           exportNodeInteractions.splice(0, exportNodeInteractions.length);
@@ -360,29 +344,29 @@ export class WorkspaceExport {
     }
 
     if (exportNodeInteractions.length > 0) {
-      await this.saveDataFile(
+      await this.saveJsonFile(
         `node_interactions_${part}.json`,
         exportNodeInteractions
       );
 
       await this.saveLog(
         TaskLogLevel.Info,
-        `Exported part ${part} of node interactions. Total node interactions: ${this.manifest.counts.nodeInteractions.toLocaleString()}`
+        `Exported part ${part} of node interactions.`
       );
     }
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Finished exporting node interactions. Total node interactions: ${this.manifest.counts.nodeInteractions.toLocaleString()}`
+      `Exported ${this.manifest.counts.nodeInteractions.toLocaleString()} node interactions.`
     );
   }
 
   private async exportDocumentUpdates() {
-    await this.saveLog(TaskLogLevel.Info, 'Exporting document updates');
+    await this.saveLog(TaskLogLevel.Info, 'Exporting document updates.');
 
     let lastUpdateId: string | null = null;
     let hasMore = true;
-    let part = 0;
+    let part = 1;
 
     const exportDocumentUpdates: ExportDocumentUpdate[] = [];
 
@@ -414,14 +398,14 @@ export class WorkspaceExport {
         this.manifest.counts.documentUpdates++;
 
         if (exportDocumentUpdates.length >= FILE_BATCH_SIZE) {
-          await this.saveDataFile(
+          await this.saveJsonFile(
             `document_updates_${part}.json`,
             exportDocumentUpdates
           );
 
           await this.saveLog(
             TaskLogLevel.Info,
-            `Exported part ${part} of document updates. Total document updates: ${this.manifest.counts.documentUpdates.toLocaleString()}`
+            `Exported part ${part} of document updates.`
           );
 
           exportDocumentUpdates.splice(0, exportDocumentUpdates.length);
@@ -431,33 +415,31 @@ export class WorkspaceExport {
     }
 
     if (exportDocumentUpdates.length > 0) {
-      await this.saveDataFile(
+      await this.saveJsonFile(
         `document_updates_${part}.json`,
         exportDocumentUpdates
       );
 
       await this.saveLog(
         TaskLogLevel.Info,
-        `Exported part ${part} of document updates. Total document updates: ${this.manifest.counts.documentUpdates.toLocaleString()}`
+        `Exported part ${part} of document updates.`
       );
     }
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Finished exporting document updates. Total document updates: ${this.manifest.counts.documentUpdates.toLocaleString()}`
+      `Exported ${this.manifest.counts.documentUpdates.toLocaleString()} document updates.`
     );
   }
 
   private async exportUploads() {
-    await this.saveLog(TaskLogLevel.Info, 'Exporting uploads');
+    await this.saveLog(TaskLogLevel.Info, 'Exporting uploads.');
 
     let lastFileId: string | null = null;
     let hasMore = true;
-    let part = 0;
+    let part = 1;
 
     const exportUploads: ExportUpload[] = [];
-    const fileKeys: string[] = [];
-    let filesSize = 0;
 
     while (hasMore) {
       const uploads = await database
@@ -475,6 +457,12 @@ export class WorkspaceExport {
       }
 
       for (const upload of uploads) {
+        let url: string | undefined;
+
+        if (upload.uploaded_at) {
+          url = await buildDownloadUrl(upload.path);
+        }
+
         exportUploads.push({
           fileId: upload.file_id,
           uploadId: upload.upload_id,
@@ -485,71 +473,54 @@ export class WorkspaceExport {
           createdAt: upload.created_at.toISOString(),
           createdBy: upload.created_by,
           uploadedAt: upload.uploaded_at?.toISOString(),
+          url,
         });
 
         lastFileId = upload.file_id;
         this.manifest.counts.uploads++;
 
         if (exportUploads.length >= FILE_BATCH_SIZE) {
-          await this.saveDataFile(`uploads_${part}.json`, exportUploads);
+          await this.saveJsonFile(`uploads_${part}.json`, exportUploads);
           await this.saveLog(
             TaskLogLevel.Info,
-            `Exported part ${part} of uploads. Total uploads: ${this.manifest.counts.uploads.toLocaleString()}`
+            `Exported part ${part} of uploads.`
           );
 
           exportUploads.splice(0, exportUploads.length);
           part++;
         }
-
-        if (upload.uploaded_at) {
-          fileKeys.push(upload.path);
-          filesSize += upload.size;
-
-          if (filesSize >= FILE_BATCH_SIZE_LIMIT) {
-            this.uploadFileKeys.push(fileKeys);
-            fileKeys.splice(0, fileKeys.length);
-            filesSize = 0;
-          }
-        }
       }
     }
 
     if (exportUploads.length > 0) {
-      await this.saveDataFile(`uploads_${part}.json`, exportUploads);
+      await this.saveJsonFile(`uploads_${part}.json`, exportUploads);
       await this.saveLog(
         TaskLogLevel.Info,
-        `Exported part ${part} of uploads. Total uploads: ${this.manifest.counts.uploads.toLocaleString()}`
+        `Exported part ${part} of uploads.`
       );
     }
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Finished exporting uploads. Total uploads: ${this.manifest.counts.uploads.toLocaleString()}`
+      `Exported ${this.manifest.counts.uploads.toLocaleString()} uploads.`
     );
   }
 
-  private async zipDataFiles() {
-    this.saveLog(TaskLogLevel.Info, 'Zipping data file');
+  private async zipFiles() {
+    this.saveLog(TaskLogLevel.Info, 'Zipping data file.');
 
     const s3Zip = new S3Zip({
       s3: fileS3,
       bucket: config.fileS3.bucketName,
-      inputKeys: this.dataFileKeys,
-      outputKey: this.exportDataZipKey,
+      inputKeys: this.fileKeys,
+      outputKey: this.exportZipKey,
     });
 
     const { zipFileSize, zipFileName } = await s3Zip.zip();
 
-    this.manifest.files.push({
-      type: 'data',
-      name: zipFileName,
-      createdAt: new Date().toISOString(),
-      size: zipFileSize,
-    });
-
     await this.saveArtifact(
       'data',
-      this.exportDataZipKey,
+      this.exportZipKey,
       zipFileName,
       'application/zip',
       zipFileSize
@@ -557,83 +528,16 @@ export class WorkspaceExport {
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Finished zipping data file at '${zipFileName}'. Size: ${formatBytes(zipFileSize)}`
+      `Zipped data file at '${zipFileName}'. Size: ${formatBytes(zipFileSize)}`
     );
-  }
-
-  private async zipUploadFiles() {
-    await this.saveLog(TaskLogLevel.Info, 'Zipping uploaded files');
-
-    for (let i = 0; i < this.uploadFileKeys.length; i++) {
-      const inputKeys = this.uploadFileKeys[i];
-      if (!inputKeys) {
-        continue;
-      }
-
-      const outputKey = `${this.exportFilesZipPrefix}_${i}.zip`;
-
-      const s3Zip = new S3Zip({
-        s3: fileS3,
-        bucket: config.fileS3.bucketName,
-        inputKeys,
-        outputKey,
-      });
-
-      const { zipFileSize, zipFileName } = await s3Zip.zip();
-
-      this.manifest.files.push({
-        type: 'file',
-        name: zipFileName,
-        createdAt: new Date().toISOString(),
-        size: zipFileSize,
-      });
-
-      await this.saveArtifact(
-        'file',
-        outputKey,
-        zipFileName,
-        'application/zip',
-        zipFileSize
-      );
-
-      await this.saveLog(
-        TaskLogLevel.Info,
-        `Finished zipping part ${i + 1} of uploaded files at '${zipFileName}'. Size: ${formatBytes(zipFileSize)}`
-      );
-    }
   }
 
   private async saveManifest() {
-    const filePath = `${this.taskDir}/manifest.json`;
     const json = JSON.stringify(this.manifest);
-    const size = Buffer.byteLength(json, 'utf-8');
-
-    this.manifest.files.push({
-      type: 'manifest',
-      name: 'manifest.json',
-      createdAt: new Date().toISOString(),
-      size,
-    });
-
-    const putCommand = new PutObjectCommand({
-      Bucket: config.fileS3.bucketName,
-      Key: filePath,
-      Body: json,
-      ContentType: 'application/json',
-    });
-
-    await fileS3.send(putCommand);
-
-    await this.saveArtifact(
-      'manifest',
-      filePath,
-      'manifest.json',
-      'application/json',
-      size
-    );
+    await this.saveJsonFile('manifest.json', json);
   }
 
-  private async saveDataFile(name: string, content: unknown) {
+  private async saveJsonFile(name: string, content: unknown) {
     const filePath = `${this.exportTempDirectory}/${name}`;
     const json = JSON.stringify(content);
 
@@ -645,13 +549,13 @@ export class WorkspaceExport {
     });
 
     await fileS3.send(putCommand);
-    this.dataFileKeys.push(filePath);
+    this.fileKeys.push(filePath);
   }
 
   private async deleteTempFiles() {
-    this.saveLog(TaskLogLevel.Info, 'Deleting temp files');
+    this.saveLog(TaskLogLevel.Info, 'Cleaning up temp files.');
 
-    for (const key of this.dataFileKeys) {
+    for (const key of this.fileKeys) {
       const deleteCommand = new DeleteObjectCommand({
         Bucket: config.fileS3.bucketName,
         Key: key,
@@ -659,6 +563,14 @@ export class WorkspaceExport {
 
       await fileS3.send(deleteCommand);
     }
+
+    const manifestKey = `${this.exportTempDirectory}/manifest.json`;
+    const deleteCommand = new DeleteObjectCommand({
+      Bucket: config.fileS3.bucketName,
+      Key: manifestKey,
+    });
+
+    await fileS3.send(deleteCommand);
   }
 
   private async saveLog(level: TaskLogLevel, message: string) {

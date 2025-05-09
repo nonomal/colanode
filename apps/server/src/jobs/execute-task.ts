@@ -3,6 +3,7 @@ import { createDebugger, TaskStatus } from '@colanode/core';
 import { JobHandler } from '@/types/jobs';
 import { database } from '@/data/database';
 import { WorkspaceExport } from '@/lib/tasks/workspace-export';
+import { WorkspaceImport } from '@/lib/tasks/workspace-import';
 
 const debug = createDebugger('server:job:generate-export');
 
@@ -64,7 +65,8 @@ export const executeTaskHandler: JobHandler<ExecuteTaskInput> = async (
   if (task.attributes.type === 'export_workspace') {
     const exporter = new WorkspaceExport(task, workspace);
     await exporter.export();
-  } else {
-    debug(`Task ${input.id} type ${task.attributes.type} is not supported`);
+  } else if (task.attributes.type === 'import_workspace') {
+    const importer = new WorkspaceImport(task, workspace);
+    await importer.import();
   }
 };
