@@ -8,7 +8,6 @@ import { workspaceCreateRoute } from './workspace-create';
 import { workspaceDeleteRoute } from './workspace-delete';
 import { workspaceGetRoute } from './workspace-get';
 import { workspaceUpdateRoute } from './workspace-update';
-import { tasksRoutes } from './tasks';
 
 import { accountAuthenticator } from '@/api/client/plugins/account-auth';
 import { workspaceAuthenticator } from '@/api/client/plugins/workspace-auth';
@@ -30,7 +29,6 @@ export const workspaceRoutes: FastifyPluginCallback = (instance, _, done) => {
       subInstance.register(downloadRoutes, { prefix: '/downloads' });
       subInstance.register(userRoutes, { prefix: '/users' });
       subInstance.register(mutationsRoutes, { prefix: '/mutations' });
-      subInstance.register(tasksRoutes, { prefix: '/tasks' });
     },
     {
       prefix: '/:workspaceId',

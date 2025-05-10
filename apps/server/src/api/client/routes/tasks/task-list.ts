@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
 import {
-  ApiErrorCode,
   apiErrorOutputSchema,
   taskListOutputSchema,
   TaskOutput,
@@ -27,20 +26,13 @@ export const taskListRoute: FastifyPluginCallbackZod = (instance, _, done) => {
         400: apiErrorOutputSchema,
       },
     },
-    handler: async (request, reply) => {
+    handler: async (request) => {
       const { after, limit } = request.query;
-
-      if (request.user.role !== 'owner') {
-        return reply.code(403).send({
-          code: ApiErrorCode.Forbidden,
-          message: 'Only owners can create a full workspace export.',
-        });
-      }
 
       const tasks = await database
         .selectFrom('tasks')
         .selectAll()
-        .where('workspace_id', '=', request.user.workspace_id)
+        .where('created_by', '=', request.account.id)
         .$if(after !== undefined, (qb) => qb.where('id', '<', after!))
         .orderBy('id', 'desc')
         .limit(limit + 1)

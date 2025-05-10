@@ -3,7 +3,6 @@ import { TaskGetOutput } from '@colanode/core';
 export type TaskGetQueryInput = {
   type: 'task_get';
   accountId: string;
-  workspaceId: string;
   taskId: string;
 };
 

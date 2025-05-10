@@ -15,11 +15,18 @@ export enum TaskLogLevel {
   Error = 2,
 }
 
+export enum TaskArtifactStatus {
+  Pending = 0,
+  Available = 1,
+  Expired = 2,
+}
+
 export const taskArtifactTypeSchema = z.enum(['data', 'file', 'manifest']);
 export type TaskArtifactType = z.infer<typeof taskArtifactTypeSchema>;
 
 export const exportWorkspaceTaskAttributesSchema = z.object({
   type: z.literal('export_workspace'),
+  workspaceId: z.string(),
 });
 
 export type ExportWorkspaceTaskAttributes = z.infer<
@@ -48,7 +55,6 @@ export const taskOutputSchema = z.object({
   description: z.string().optional(),
   attributes: taskAttributesSchema,
   status: z.nativeEnum(TaskStatus),
-  workspaceId: z.string(),
   createdAt: z.string(),
   createdBy: z.string(),
   startedAt: z.string().optional(),

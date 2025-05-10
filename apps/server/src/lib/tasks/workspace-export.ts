@@ -1,5 +1,4 @@
 import {
-  createDebugger,
   ExportDocumentUpdate,
   ExportManifest,
   ExportNodeInteraction,
@@ -7,80 +6,56 @@ import {
   ExportNodeUpdate,
   ExportUpload,
   ExportUser,
+  ExportWorkspaceTaskAttributes,
   formatBytes,
-  formatTaskLogLevel,
-  generateId,
-  IdType,
-  TaskArtifactType,
   TaskLogLevel,
-  TaskStatus,
 } from '@colanode/core';
 import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { encodeState } from '@colanode/crdt';
 
-import {
-  mapTaskOutput,
-  mapTaskLogOutput,
-  mapTaskArtifactOutput,
-} from '@/lib/tasks/mappers';
-import { SelectTask, SelectWorkspace } from '@/data/schema';
+import { SelectTask } from '@/data/schema';
 import { config } from '@/lib/config';
 import { database } from '@/data/database';
 import { fileS3 } from '@/data/storage';
 import { S3Zip } from '@/lib/tasks/s3-zip';
-import { eventBus } from '@/lib/event-bus';
 import { buildDownloadUrl } from '@/lib/files';
+import { TaskBase } from '@/lib/tasks/task-base';
 
 const READ_BATCH_SIZE = 500;
 const FILE_BATCH_SIZE = 10000;
-const debug = createDebugger('workspace-exporter');
 
-export class WorkspaceExport {
-  private readonly task: SelectTask;
-  private readonly workspace: SelectWorkspace;
+export class WorkspaceExport extends TaskBase {
+  private readonly attributes: ExportWorkspaceTaskAttributes;
 
-  private readonly taskDir: string;
   private readonly exportZipKey: string;
   private readonly exportTempDirectory: string;
   private readonly artifactExpireDate: Date;
   private readonly fileKeys: string[] = [];
-  private readonly manifest: ExportManifest;
 
-  constructor(dbTask: SelectTask, dbWorkspace: SelectWorkspace) {
-    this.task = dbTask;
-    this.workspace = dbWorkspace;
+  private usersCount = 0;
+  private nodeUpdatesCount = 0;
+  private nodeReactionsCount = 0;
+  private nodeInteractionsCount = 0;
+  private documentUpdatesCount = 0;
+  private uploadsCount = 0;
 
-    this.manifest = {
-      id: this.task.id,
-      server: {
-        version: config.server.version,
-        sha: config.server.sha,
-      },
-      workspace: {
-        id: this.workspace.id,
-        name: this.workspace.name,
-        createdAt: this.workspace.created_at.toISOString(),
-        description: this.workspace.description ?? undefined,
-      },
-      counts: {
-        users: 0,
-        nodeUpdates: 0,
-        nodeReactions: 0,
-        nodeInteractions: 0,
-        documentUpdates: 0,
-        uploads: 0,
-      },
-      createdAt: new Date().toISOString(),
-    };
+  constructor(dbTask: SelectTask) {
+    super(dbTask);
 
-    this.taskDir = `tasks/${this.task.id}`;
+    if (dbTask.attributes.type !== 'export_workspace') {
+      throw new Error('Task is not a workspace export');
+    }
+
+    this.attributes = dbTask.attributes;
+
     this.exportZipKey = `${this.taskDir}/data.zip`;
     this.exportTempDirectory = `${this.taskDir}/temp`;
     this.artifactExpireDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   }
 
   public async export() {
-    await this.startTask();
+    await this.markTaskAsRunning();
+
     await this.exportUsers();
     await this.exportNodeUpdates();
     await this.exportNodeReactions();
@@ -88,9 +63,11 @@ export class WorkspaceExport {
     await this.exportDocumentUpdates();
     await this.exportUploads();
     await this.saveManifest();
+
     await this.zipFiles();
     await this.deleteTempFiles();
-    await this.completeTask();
+
+    await this.markTaskAsCompleted();
   }
 
   private async exportUsers() {
@@ -105,7 +82,7 @@ export class WorkspaceExport {
         .selectFrom('users')
         .selectAll()
         .$if(lastUserId !== null, (qb) => qb.where('id', '>', lastUserId))
-        .where('workspace_id', '=', this.workspace.id)
+        .where('workspace_id', '=', this.attributes.workspaceId)
         .orderBy('id', 'asc')
         .limit(READ_BATCH_SIZE)
         .execute();
@@ -132,7 +109,7 @@ export class WorkspaceExport {
         });
 
         lastUserId = user.id;
-        this.manifest.counts.users++;
+        this.usersCount++;
       }
     }
 
@@ -142,7 +119,7 @@ export class WorkspaceExport {
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Exported ${this.manifest.counts.users.toLocaleString()} users.`
+      `Exported ${this.usersCount.toLocaleString()} users.`
     );
   }
 
@@ -160,7 +137,7 @@ export class WorkspaceExport {
         .selectFrom('node_updates')
         .selectAll()
         .$if(lastUpdateId !== null, (qb) => qb.where('id', '>', lastUpdateId))
-        .where('workspace_id', '=', this.workspace.id)
+        .where('workspace_id', '=', this.attributes.workspaceId)
         .orderBy('id', 'asc')
         .limit(READ_BATCH_SIZE)
         .execute();
@@ -180,7 +157,7 @@ export class WorkspaceExport {
         });
 
         lastUpdateId = update.id;
-        this.manifest.counts.nodeUpdates++;
+        this.nodeUpdatesCount++;
 
         if (exportNodeUpdates.length >= FILE_BATCH_SIZE) {
           await this.saveJsonFile(
@@ -208,7 +185,7 @@ export class WorkspaceExport {
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Exported ${this.manifest.counts.nodeUpdates.toLocaleString()} node updates.`
+      `Exported ${this.nodeUpdatesCount.toLocaleString()} node updates.`
     );
   }
 
@@ -228,7 +205,7 @@ export class WorkspaceExport {
         .$if(lastRevision !== null, (qb) =>
           qb.where('revision', '>', lastRevision)
         )
-        .where('workspace_id', '=', this.workspace.id)
+        .where('workspace_id', '=', this.attributes.workspaceId)
         .orderBy('revision', 'asc')
         .limit(READ_BATCH_SIZE)
         .execute();
@@ -251,7 +228,7 @@ export class WorkspaceExport {
         });
 
         lastRevision = reaction.revision;
-        this.manifest.counts.nodeReactions++;
+        this.nodeReactionsCount++;
 
         if (exportNodeReactions.length >= FILE_BATCH_SIZE) {
           await this.saveJsonFile(
@@ -283,7 +260,7 @@ export class WorkspaceExport {
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Exported ${this.manifest.counts.nodeReactions.toLocaleString()} node reactions.`
+      `Exported ${this.nodeReactionsCount.toLocaleString()} node reactions.`
     );
   }
 
@@ -303,7 +280,7 @@ export class WorkspaceExport {
         .$if(lastRevision !== null, (qb) =>
           qb.where('revision', '>', lastRevision)
         )
-        .where('workspace_id', '=', this.workspace.id)
+        .where('workspace_id', '=', this.attributes.workspaceId)
         .orderBy('revision', 'asc')
         .limit(READ_BATCH_SIZE)
         .execute();
@@ -324,7 +301,7 @@ export class WorkspaceExport {
         });
 
         lastRevision = interaction.revision;
-        this.manifest.counts.nodeInteractions++;
+        this.nodeInteractionsCount++;
 
         if (exportNodeInteractions.length >= FILE_BATCH_SIZE) {
           await this.saveJsonFile(
@@ -357,7 +334,7 @@ export class WorkspaceExport {
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Exported ${this.manifest.counts.nodeInteractions.toLocaleString()} node interactions.`
+      `Exported ${this.nodeInteractionsCount.toLocaleString()} node interactions.`
     );
   }
 
@@ -375,7 +352,7 @@ export class WorkspaceExport {
         .selectFrom('document_updates')
         .selectAll()
         .$if(lastUpdateId !== null, (qb) => qb.where('id', '>', lastUpdateId))
-        .where('workspace_id', '=', this.workspace.id)
+        .where('workspace_id', '=', this.attributes.workspaceId)
         .orderBy('id', 'asc')
         .limit(READ_BATCH_SIZE)
         .execute();
@@ -395,7 +372,7 @@ export class WorkspaceExport {
         });
 
         lastUpdateId = update.id;
-        this.manifest.counts.documentUpdates++;
+        this.documentUpdatesCount++;
 
         if (exportDocumentUpdates.length >= FILE_BATCH_SIZE) {
           await this.saveJsonFile(
@@ -428,7 +405,7 @@ export class WorkspaceExport {
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Exported ${this.manifest.counts.documentUpdates.toLocaleString()} document updates.`
+      `Exported ${this.documentUpdatesCount.toLocaleString()} document updates.`
     );
   }
 
@@ -446,7 +423,7 @@ export class WorkspaceExport {
         .selectFrom('uploads')
         .selectAll()
         .$if(lastFileId !== null, (qb) => qb.where('file_id', '>', lastFileId))
-        .where('workspace_id', '=', this.workspace.id)
+        .where('workspace_id', '=', this.attributes.workspaceId)
         .orderBy('file_id', 'asc')
         .limit(READ_BATCH_SIZE)
         .execute();
@@ -477,7 +454,7 @@ export class WorkspaceExport {
         });
 
         lastFileId = upload.file_id;
-        this.manifest.counts.uploads++;
+        this.uploadsCount++;
 
         if (exportUploads.length >= FILE_BATCH_SIZE) {
           await this.saveJsonFile(`uploads_${part}.json`, exportUploads);
@@ -502,7 +479,7 @@ export class WorkspaceExport {
 
     await this.saveLog(
       TaskLogLevel.Info,
-      `Exported ${this.manifest.counts.uploads.toLocaleString()} uploads.`
+      `Exported ${this.uploadsCount.toLocaleString()} uploads.`
     );
   }
 
@@ -523,7 +500,8 @@ export class WorkspaceExport {
       this.exportZipKey,
       zipFileName,
       'application/zip',
-      zipFileSize
+      zipFileSize,
+      this.artifactExpireDate
     );
 
     await this.saveLog(
@@ -533,7 +511,30 @@ export class WorkspaceExport {
   }
 
   private async saveManifest() {
-    const json = JSON.stringify(this.manifest);
+    const manifest: ExportManifest = {
+      id: this.task.id,
+      server: {
+        version: config.server.version,
+        sha: config.server.sha,
+      },
+      workspace: {
+        id: this.attributes.workspaceId,
+        name: '',
+        createdAt: new Date().toISOString(),
+        description: '',
+      },
+      counts: {
+        users: this.usersCount,
+        nodeUpdates: this.nodeUpdatesCount,
+        nodeReactions: this.nodeReactionsCount,
+        nodeInteractions: this.nodeInteractionsCount,
+        documentUpdates: this.documentUpdatesCount,
+        uploads: this.uploadsCount,
+      },
+      createdAt: new Date().toISOString(),
+    };
+
+    const json = JSON.stringify(manifest);
     await this.saveJsonFile('manifest.json', json);
   }
 
@@ -571,148 +572,5 @@ export class WorkspaceExport {
     });
 
     await fileS3.send(deleteCommand);
-  }
-
-  private async saveLog(level: TaskLogLevel, message: string) {
-    debug(
-      `Writing log for task ${this.task.id} with level ${formatTaskLogLevel(level)}: ${message}`
-    );
-
-    const { taskLog, task } = await database
-      .transaction()
-      .execute(async (tx) => {
-        const taskLog = await tx
-          .insertInto('task_logs')
-          .returningAll()
-          .values({
-            id: generateId(IdType.TaskLog),
-            task_id: this.task.id,
-            level,
-            message,
-            created_at: new Date(),
-          })
-          .executeTakeFirst();
-
-        if (!taskLog) {
-          throw new Error('Failed to write task log');
-        }
-
-        const task = await tx
-          .updateTable('tasks')
-          .returningAll()
-          .set({
-            active_at: new Date(),
-          })
-          .where('id', '=', this.task.id)
-          .executeTakeFirst();
-
-        if (!task) {
-          throw new Error('Failed to update task');
-        }
-
-        return { taskLog, task };
-      });
-
-    eventBus.publish({
-      type: 'task_log_created',
-      task: mapTaskOutput(task),
-      log: mapTaskLogOutput(taskLog),
-    });
-  }
-
-  private async saveArtifact(
-    type: TaskArtifactType,
-    path: string,
-    name: string,
-    mimeType: string,
-    size: number
-  ) {
-    debug(
-      `Saving artifact for task ${this.task.id} with type ${type}: ${name}`
-    );
-
-    const { taskArtifact, task } = await database
-      .transaction()
-      .execute(async (tx) => {
-        const taskArtifact = await tx
-          .insertInto('task_artifacts')
-          .returningAll()
-          .values({
-            id: generateId(IdType.TaskArtifact),
-            task_id: this.task.id,
-            type,
-            name,
-            mime_type: mimeType,
-            size,
-            path,
-            created_at: new Date(),
-            expires_at: this.artifactExpireDate,
-          })
-          .executeTakeFirst();
-
-        if (!taskArtifact) {
-          throw new Error('Failed to write task artifact');
-        }
-
-        const task = await tx
-          .updateTable('tasks')
-          .returningAll()
-          .set({
-            active_at: new Date(),
-          })
-          .where('id', '=', this.task.id)
-          .executeTakeFirst();
-
-        if (!task) {
-          throw new Error('Failed to update task');
-        }
-
-        return { taskArtifact, task };
-      });
-
-    eventBus.publish({
-      type: 'task_artifact_created',
-      task: mapTaskOutput(task),
-      artifact: mapTaskArtifactOutput(taskArtifact),
-    });
-  }
-
-  private async startTask() {
-    const task = await database
-      .updateTable('tasks')
-      .returningAll()
-      .set({
-        status: TaskStatus.Running,
-        started_at: new Date(),
-      })
-      .where('id', '=', this.task.id)
-      .executeTakeFirst();
-
-    if (!task) {
-      throw new Error('Failed to update task');
-    }
-
-    eventBus.publish({
-      type: 'task_updated',
-      task: mapTaskOutput(task),
-    });
-  }
-
-  private async completeTask() {
-    const task = await database
-      .updateTable('tasks')
-      .returningAll()
-      .set({
-        status: TaskStatus.Completed,
-        completed_at: new Date(),
-      })
-      .where('id', '=', this.task.id)
-      .executeTakeFirst();
-
-    if (!task) {
-      throw new Error('Failed to update task');
-    }
-
-    eventBus.publish({ type: 'task_updated', task: mapTaskOutput(task) });
   }
 }

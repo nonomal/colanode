@@ -30,17 +30,9 @@ export const taskGetRoute: FastifyPluginCallbackZod = (instance, _, done) => {
     handler: async (request, reply) => {
       const { taskId } = request.params;
 
-      if (request.user.role !== 'owner') {
-        return reply.code(403).send({
-          code: ApiErrorCode.Forbidden,
-          message: 'Only owners can create a full workspace export.',
-        });
-      }
-
       const task = await database
         .selectFrom('tasks')
         .selectAll()
-        .where('workspace_id', '=', request.user.workspace_id)
         .where('id', '=', taskId)
         .executeTakeFirst();
 
@@ -48,6 +40,13 @@ export const taskGetRoute: FastifyPluginCallbackZod = (instance, _, done) => {
         return reply.code(404).send({
           code: ApiErrorCode.NotFound,
           message: 'Task not found.',
+        });
+      }
+
+      if (task.created_by !== request.account.id) {
+        return reply.code(403).send({
+          code: ApiErrorCode.Forbidden,
+          message: 'Only the creator can view the task.',
         });
       }
 

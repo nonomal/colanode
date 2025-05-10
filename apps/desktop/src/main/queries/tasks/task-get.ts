@@ -1,17 +1,13 @@
 import { TaskGetOutput } from '@colanode/core';
 
-import { WorkspaceQueryHandlerBase } from '../workspace-query-handler-base';
-
 import { ChangeCheckResult, QueryHandler } from '@/main/lib/types';
 import { parseApiError } from '@/shared/lib/axios';
 import { Event } from '@/shared/types/events';
 import { TaskGetQueryInput } from '@/shared/queries/tasks/task-get';
 import { QueryError, QueryErrorCode } from '@/shared/queries';
+import { appService } from '@/main/services/app-service';
 
-export class TaskGetQueryHandler
-  extends WorkspaceQueryHandlerBase
-  implements QueryHandler<TaskGetQueryInput>
-{
+export class TaskGetQueryHandler implements QueryHandler<TaskGetQueryInput> {
   public async handleQuery(
     input: TaskGetQueryInput
   ): Promise<TaskGetOutput | null> {
@@ -29,9 +25,8 @@ export class TaskGetQueryHandler
     output: TaskGetOutput | null
   ): Promise<ChangeCheckResult<TaskGetQueryInput>> {
     if (
-      event.type === 'workspace_deleted' &&
-      event.workspace.accountId === input.accountId &&
-      event.workspace.id === input.workspaceId
+      event.type === 'account_deleted' &&
+      event.account.id === input.accountId
     ) {
       return {
         hasChanges: true,
@@ -41,11 +36,7 @@ export class TaskGetQueryHandler
 
     if (event.type === 'account_connection_message') {
       const message = event.message;
-      if (
-        message.type === 'task_created' &&
-        message.task.workspaceId === input.workspaceId &&
-        message.task.id === input.taskId
-      ) {
+      if (message.type === 'task_created' && message.task.id === input.taskId) {
         if (output === null) {
           const newOutput = await this.fetchTask(input);
           return {
@@ -63,11 +54,7 @@ export class TaskGetQueryHandler
         };
       }
 
-      if (
-        message.type === 'task_updated' &&
-        message.task.workspaceId === input.workspaceId &&
-        message.task.id === input.taskId
-      ) {
+      if (message.type === 'task_updated' && message.task.id === input.taskId) {
         if (output === null) {
           const newOutput = await this.fetchTask(input);
           return {
@@ -87,7 +74,6 @@ export class TaskGetQueryHandler
 
       if (
         message.type === 'task_log_created' &&
-        message.task.workspaceId === input.workspaceId &&
         message.task.id === input.taskId
       ) {
         if (output === null) {
@@ -113,7 +99,6 @@ export class TaskGetQueryHandler
 
       if (
         message.type === 'task_artifact_created' &&
-        message.task.workspaceId === input.workspaceId &&
         message.task.id === input.taskId
       ) {
         if (output === null) {
@@ -146,10 +131,16 @@ export class TaskGetQueryHandler
   }
 
   private async fetchTask(input: TaskGetQueryInput): Promise<TaskGetOutput> {
-    const workspace = this.getWorkspace(input.accountId, input.workspaceId);
+    const account = appService.getAccount(input.accountId);
+    if (!account) {
+      throw new QueryError(
+        QueryErrorCode.AccountNotFound,
+        'Account not found or has been logged out already. Try closing the app and opening it again.'
+      );
+    }
 
-    const response = await workspace.account.client.get<TaskGetOutput>(
-      `/v1/workspaces/${workspace.id}/tasks/${input.taskId}`
+    const response = await account.client.get<TaskGetOutput>(
+      `/v1/tasks/${input.taskId}`
     );
 
     return response.data;

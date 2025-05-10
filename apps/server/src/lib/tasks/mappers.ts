@@ -8,7 +8,6 @@ export const mapTaskOutput = (task: SelectTask): TaskOutput => {
     name: task.name,
     description: task.description ?? undefined,
     status: task.status,
-    workspaceId: task.workspace_id,
     createdAt: task.created_at.toISOString(),
     createdBy: task.created_by,
     completedAt: task.completed_at?.toISOString(),

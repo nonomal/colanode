@@ -30,13 +30,6 @@ export const taskCreateRoute: FastifyPluginCallbackZod = (
       },
     },
     handler: async (request, reply) => {
-      if (request.user.role !== 'owner') {
-        return reply.code(403).send({
-          code: ApiErrorCode.Forbidden,
-          message: 'Only owners can create a full workspace export.',
-        });
-      }
-
       const id = generateId(IdType.Task);
       const attributes = request.body.attributes;
 
@@ -45,13 +38,12 @@ export const taskCreateRoute: FastifyPluginCallbackZod = (
         .returningAll()
         .values({
           id,
-          workspace_id: request.user.workspace_id,
           name: request.body.name,
           description: request.body.description,
           status: TaskStatus.Pending,
           attributes: JSON.stringify(attributes),
           created_at: new Date(),
-          created_by: request.user.id,
+          created_by: request.account.id,
         })
         .executeTakeFirst();
 

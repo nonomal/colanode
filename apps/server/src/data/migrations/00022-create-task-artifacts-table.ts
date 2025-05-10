@@ -8,11 +8,13 @@ export const createTaskArtifactsTable: Migration = {
       .addColumn('task_id', 'varchar(30)', (col) => col.notNull())
       .addColumn('type', 'varchar(255)', (col) => col.notNull())
       .addColumn('name', 'varchar(255)', (col) => col.notNull())
+      .addColumn('description', 'text')
       .addColumn('mime_type', 'varchar(255)', (col) => col.notNull())
       .addColumn('size', 'integer', (col) => col.notNull())
       .addColumn('path', 'text', (col) => col.notNull())
       .addColumn('created_at', 'timestamptz', (col) => col.notNull())
       .addColumn('expires_at', 'timestamptz')
+      .addColumn('status', 'integer', (col) => col.notNull())
       .execute();
 
     await db.schema

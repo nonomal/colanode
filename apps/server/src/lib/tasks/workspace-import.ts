@@ -2,6 +2,7 @@ import {
   AccountStatus,
   DocumentContent,
   ExportDocumentUpdate,
+  ExportManifest,
   ExportNodeInteraction,
   ExportNodeReaction,
   ExportNodeUpdate,
@@ -10,11 +11,13 @@ import {
   extractNodeParentId,
   generateId,
   IdType,
+  ImportWorkspaceTaskAttributes,
   NodeAttributes,
-  TaskStatus,
+  TaskLogLevel,
   UserStatus,
+  WorkspaceStatus,
 } from '@colanode/core';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { sql } from 'kysely';
 import { decodeState, YDoc } from '@colanode/crdt';
 
@@ -22,8 +25,6 @@ import path from 'path';
 
 import { fetchNodeTree } from '@/lib/nodes';
 import { S3Unzip } from '@/lib/tasks/s3-unzip';
-import { mapTaskOutput } from '@/lib/tasks/mappers';
-import { eventBus } from '@/lib/event-bus';
 import { database } from '@/data/database';
 import {
   CreateNodeInteraction,
@@ -37,33 +38,37 @@ import {
 } from '@/data/schema';
 import { fileS3 } from '@/data/storage';
 import { config } from '@/lib/config';
+import { TaskBase } from '@/lib/tasks/task-base';
 
 const WRITE_BATCH_SIZE = 500;
 
-export class WorkspaceImport {
-  private readonly task: SelectTask;
-  private readonly workspace: SelectWorkspace;
-
-  private readonly taskDir: string;
+export class WorkspaceImport extends TaskBase {
+  private readonly attributes: ImportWorkspaceTaskAttributes;
   private readonly fileKeys: string[] = [];
 
-  constructor(dbTask: SelectTask, dbWorkspace: SelectWorkspace) {
-    this.task = dbTask;
-    this.workspace = dbWorkspace;
+  private artifact: SelectTaskArtifact | undefined;
+  private manifest: ExportManifest | undefined;
+  private workspace: SelectWorkspace | undefined;
 
-    this.taskDir = `tasks/${this.task.id}`;
+  constructor(dbTask: SelectTask) {
+    super(dbTask);
+
+    if (dbTask.attributes.type !== 'import_workspace') {
+      throw new Error('Task is not a workspace import');
+    }
+
+    this.attributes = dbTask.attributes;
   }
 
   public async import() {
     try {
-      await this.startTask();
+      await this.markTaskAsRunning();
 
-      const artifact = await this.fetchArtifact();
-      if (!artifact) {
-        throw new Error('Artifact not found');
-      }
+      await this.fetchArtifact();
+      await this.unzipArtifact();
 
-      await this.unzipArtifact(artifact);
+      await this.extractManifest();
+      await this.importWorkspace();
       await this.importUsers();
       await this.importNodeUpdates();
       await this.importNodeReactions();
@@ -71,13 +76,62 @@ export class WorkspaceImport {
       await this.importDocumentUpdates();
       await this.importUploads();
 
-      await this.completeTask();
+      await this.markTaskAsCompleted();
     } catch (error) {
       console.error(error);
     }
   }
 
+  private async extractManifest() {
+    await this.saveLog(TaskLogLevel.Info, 'Reading manifest file.');
+
+    const manifestFile = this.fileKeys.find((file) =>
+      file.includes('manifest.json')
+    );
+
+    if (!manifestFile) {
+      throw new Error('Manifest file not found');
+    }
+
+    const manifest = await this.fetchJsonFile<ExportManifest>(manifestFile);
+    this.manifest = manifest;
+  }
+
+  private async importWorkspace() {
+    if (!this.manifest) {
+      throw new Error('Manifest not found');
+    }
+
+    await this.saveLog(TaskLogLevel.Info, 'Creating workspace.');
+
+    const workspace = await database
+      .insertInto('workspaces')
+      .returningAll()
+      .values({
+        id: this.manifest.workspace.id,
+        name: this.manifest.workspace.name,
+        description: this.manifest.workspace.description,
+        created_at: new Date(this.manifest.workspace.createdAt),
+        created_by: this.task.created_by,
+        status: WorkspaceStatus.Active,
+      })
+      .executeTakeFirst();
+
+    if (!workspace) {
+      throw new Error('Failed to create workspace');
+    }
+
+    this.workspace = workspace;
+  }
+
   private async importUsers() {
+    if (!this.workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    await this.saveLog(TaskLogLevel.Info, 'Importing users.');
+
+    const workspaceId = this.workspace.id;
     const userFile = this.fileKeys.find((file) => file.includes('users.json'));
 
     if (!userFile) {
@@ -131,7 +185,7 @@ export class WorkspaceImport {
           email: exportUser.email,
           name: exportUser.name,
           custom_name: exportUser.customName,
-          workspace_id: this.workspace.id,
+          workspace_id: workspaceId,
           role: exportUser.role,
           account_id: account.id,
           max_file_size: exportUser.maxFileSize,
@@ -141,7 +195,7 @@ export class WorkspaceImport {
           updated_at: exportUser.updatedAt
             ? new Date(exportUser.updatedAt)
             : null,
-          created_by: this.workspace.created_by,
+          created_by: this.task.created_by,
         })
         .executeTakeFirst();
 
@@ -149,9 +203,22 @@ export class WorkspaceImport {
         throw new Error('Failed to create user');
       }
     }
+
+    await this.saveLog(
+      TaskLogLevel.Info,
+      `Imported ${exportUsers.length.toLocaleString()} users.`
+    );
   }
 
   private async importNodeUpdates() {
+    if (!this.workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    await this.saveLog(TaskLogLevel.Info, 'Importing node updates.');
+
+    let nodeUpdateCount = 0;
+    const workspaceId = this.workspace.id;
     const nodeUpdateFiles = this.fileKeys
       .filter((file) => file.includes('node_updates'))
       .sort();
@@ -166,6 +233,8 @@ export class WorkspaceImport {
 
       const nodeUpdatesMap = new Map<string, ExportNodeUpdate[]>();
       for (const nodeUpdate of allNodeUpdates) {
+        nodeUpdateCount++;
+
         if (!nodeUpdatesMap.has(nodeUpdate.nodeId)) {
           nodeUpdatesMap.set(nodeUpdate.nodeId, [nodeUpdate]);
         } else {
@@ -253,7 +322,7 @@ export class WorkspaceImport {
                 created_at: new Date(update.createdAt),
                 created_by: createdBy,
                 root_id: rootId,
-                workspace_id: this.workspace.id,
+                workspace_id: workspaceId,
               }))
             )
             .execute();
@@ -275,7 +344,7 @@ export class WorkspaceImport {
             .values({
               id: nodeId,
               attributes: JSON.stringify(attributes),
-              workspace_id: this.workspace.id,
+              workspace_id: workspaceId,
               created_at: createdAt,
               created_by: createdBy,
               updated_at: updatedAt,
@@ -299,9 +368,22 @@ export class WorkspaceImport {
         });
       }
     }
+
+    await this.saveLog(
+      TaskLogLevel.Info,
+      `Imported ${nodeUpdateCount.toLocaleString()} node updates.`
+    );
   }
 
   private async importNodeReactions() {
+    if (!this.workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    await this.saveLog(TaskLogLevel.Info, 'Importing node reactions.');
+
+    let nodeReactionCount = 0;
+    const workspaceId = this.workspace.id;
     const nodeReactionFileds = this.fileKeys
       .filter((file) => file.includes('node_reactions'))
       .sort();
@@ -316,6 +398,8 @@ export class WorkspaceImport {
 
       const nodeReactionsMap = new Map<string, ExportNodeReaction[]>();
       for (const nodeReaction of nodeReactions) {
+        nodeReactionCount++;
+
         if (!nodeReactionsMap.has(nodeReaction.nodeId)) {
           nodeReactionsMap.set(nodeReaction.nodeId, [nodeReaction]);
         } else {
@@ -340,7 +424,7 @@ export class WorkspaceImport {
             node_id: nodeId,
             collaborator_id: nodeReaction.collaboratorId,
             root_id: node.root_id,
-            workspace_id: this.workspace.id,
+            workspace_id: workspaceId,
             reaction: nodeReaction.reaction,
             created_at: new Date(nodeReaction.createdAt),
           });
@@ -370,9 +454,22 @@ export class WorkspaceImport {
         }
       }
     }
+
+    await this.saveLog(
+      TaskLogLevel.Info,
+      `Imported ${nodeReactionCount.toLocaleString()} node reactions.`
+    );
   }
 
   private async importNodeInteractions() {
+    if (!this.workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    await this.saveLog(TaskLogLevel.Info, 'Importing node interactions.');
+
+    let nodeInteractionCount = 0;
+    const workspaceId = this.workspace.id;
     const nodeInteractionFileds = this.fileKeys
       .filter((file) => file.includes('node_interactions'))
       .sort();
@@ -387,6 +484,8 @@ export class WorkspaceImport {
 
       const nodeInteractionsMap = new Map<string, ExportNodeInteraction[]>();
       for (const nodeInteraction of nodeInteractions) {
+        nodeInteractionCount++;
+
         if (!nodeInteractionsMap.has(nodeInteraction.nodeId)) {
           nodeInteractionsMap.set(nodeInteraction.nodeId, [nodeInteraction]);
         } else {
@@ -413,7 +512,7 @@ export class WorkspaceImport {
             node_id: nodeId,
             collaborator_id: nodeInteraction.collaboratorId,
             root_id: node.root_id,
-            workspace_id: this.workspace.id,
+            workspace_id: workspaceId,
             first_opened_at: nodeInteraction.firstOpenedAt
               ? new Date(nodeInteraction.firstOpenedAt)
               : null,
@@ -461,9 +560,22 @@ export class WorkspaceImport {
         }
       }
     }
+
+    await this.saveLog(
+      TaskLogLevel.Info,
+      `Imported ${nodeInteractionCount.toLocaleString()} node interactions.`
+    );
   }
 
   private async importDocumentUpdates() {
+    if (!this.workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    await this.saveLog(TaskLogLevel.Info, 'Importing document updates.');
+
+    let documentUpdateCount = 0;
+    const workspaceId = this.workspace.id;
     const documentUpdateFiles = this.fileKeys
       .filter((file) => file.includes('document_updates'))
       .sort();
@@ -478,6 +590,8 @@ export class WorkspaceImport {
 
       const documentUpdatesMap = new Map<string, ExportDocumentUpdate[]>();
       for (const documentUpdate of allDocumentUpdates) {
+        documentUpdateCount++;
+
         if (!documentUpdatesMap.has(documentUpdate.documentId)) {
           documentUpdatesMap.set(documentUpdate.documentId, [documentUpdate]);
         } else {
@@ -577,7 +691,7 @@ export class WorkspaceImport {
                 data: decodeState(update.data),
                 created_at: new Date(update.createdAt),
                 created_by: createdBy,
-                workspace_id: this.workspace.id,
+                workspace_id: workspaceId,
               }))
             )
             .execute();
@@ -599,7 +713,7 @@ export class WorkspaceImport {
             .values({
               id: documentId,
               content: JSON.stringify(content),
-              workspace_id: this.workspace.id,
+              workspace_id: workspaceId,
               created_at: createdAt,
               created_by: createdBy,
               updated_at: updatedAt,
@@ -622,9 +736,24 @@ export class WorkspaceImport {
         });
       }
     }
+
+    await this.saveLog(
+      TaskLogLevel.Info,
+      `Imported ${documentUpdateCount.toLocaleString()} document updates.`
+    );
   }
 
   private async importUploads() {
+    if (!this.workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    await this.saveLog(TaskLogLevel.Info, 'Importing uploads.');
+
+    let uploadCount = 0;
+    let uploadSize = 0;
+
+    const workspaceId = this.workspace.id;
     const uploadFiles = this.fileKeys
       .filter((file) => file.includes('uploads'))
       .sort();
@@ -637,6 +766,8 @@ export class WorkspaceImport {
       const uploads = await this.fetchJsonFile<ExportUpload[]>(uploadFile);
       const batch: CreateUpload[] = [];
       for (const upload of uploads) {
+        uploadCount++;
+
         const node = await database
           .selectFrom('nodes')
           .selectAll()
@@ -647,13 +778,18 @@ export class WorkspaceImport {
           continue;
         }
 
+        const uploaded = await this.saveUploadFile(upload);
+        if (uploaded) {
+          uploadSize += upload.size;
+        }
+
         batch.push({
           file_id: upload.fileId,
           upload_id: upload.uploadId,
           root_id: node.root_id,
-          workspace_id: this.workspace.id,
+          workspace_id: workspaceId,
           created_at: new Date(upload.createdAt),
-          created_by: this.workspace.created_by,
+          created_by: upload.createdBy,
           path: upload.path,
           mime_type: upload.mimeType,
           size: upload.size,
@@ -678,7 +814,8 @@ export class WorkspaceImport {
               })
             )
             .execute();
-          batch.length = 0;
+
+          batch.splice(0, batch.length);
         }
 
         if (batch.length > 0) {
@@ -701,9 +838,36 @@ export class WorkspaceImport {
         }
       }
     }
+
+    await this.saveLog(
+      TaskLogLevel.Info,
+      `Imported ${uploadCount.toLocaleString()} files and transferred ${uploadSize.toLocaleString()} bytes.`
+    );
   }
 
-  private async fetchArtifact(): Promise<SelectTaskArtifact | undefined> {
+  private async saveUploadFile(upload: ExportUpload) {
+    if (!upload.uploadedAt || !upload.url) {
+      return false;
+    }
+
+    const response = await fetch(upload.url);
+    if (!response.body) {
+      return false;
+    }
+
+    const command = new PutObjectCommand({
+      Bucket: config.fileS3.bucketName,
+      Key: upload.path,
+      Body: response.body,
+      ContentType: upload.mimeType,
+      ContentLength: upload.size,
+    });
+
+    await fileS3.send(command);
+    return true;
+  }
+
+  private async fetchArtifact() {
     const artifact = await database
       .selectFrom('task_artifacts')
       .selectAll()
@@ -711,7 +875,7 @@ export class WorkspaceImport {
       .limit(1)
       .executeTakeFirst();
 
-    return artifact;
+    this.artifact = artifact;
   }
 
   private async fetchJsonFile<T>(path: string): Promise<T> {
@@ -732,14 +896,18 @@ export class WorkspaceImport {
     return data;
   }
 
-  private async unzipArtifact(artifact: SelectTaskArtifact) {
-    const extension = path.extname(artifact.path);
-    const outputPrefix = artifact.path.replace(extension, '');
+  private async unzipArtifact() {
+    if (!this.artifact) {
+      throw new Error('Artifact not found');
+    }
+
+    const extension = path.extname(this.artifact.path);
+    const outputPrefix = this.artifact.path.replace(extension, '');
 
     const s3Unzip = new S3Unzip({
       s3: fileS3,
       bucket: config.fileS3.bucketName,
-      inputKey: artifact.path,
+      inputKey: this.artifact.path,
       outputPrefix,
     });
 
@@ -747,44 +915,5 @@ export class WorkspaceImport {
     for (const outputKey of outputKeys) {
       this.fileKeys.push(outputKey);
     }
-  }
-
-  private async startTask() {
-    const task = await database
-      .updateTable('tasks')
-      .returningAll()
-      .set({
-        status: TaskStatus.Running,
-        started_at: new Date(),
-      })
-      .where('id', '=', this.task.id)
-      .executeTakeFirst();
-
-    if (!task) {
-      throw new Error('Failed to update task');
-    }
-
-    eventBus.publish({
-      type: 'task_updated',
-      task: mapTaskOutput(task),
-    });
-  }
-
-  private async completeTask() {
-    const task = await database
-      .updateTable('tasks')
-      .returningAll()
-      .set({
-        status: TaskStatus.Completed,
-        completed_at: new Date(),
-      })
-      .where('id', '=', this.task.id)
-      .executeTakeFirst();
-
-    if (!task) {
-      throw new Error('Failed to update task');
-    }
-
-    eventBus.publish({ type: 'task_updated', task: mapTaskOutput(task) });
   }
 }

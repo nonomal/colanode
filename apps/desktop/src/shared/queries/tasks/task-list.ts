@@ -3,7 +3,6 @@ import { TaskListOutput } from '@colanode/core';
 export type TaskListQueryInput = {
   type: 'task_list';
   accountId: string;
-  workspaceId: string;
   after?: string;
   limit: number;
 };

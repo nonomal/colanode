@@ -1,17 +1,12 @@
 import { TaskListOutput } from '@colanode/core';
 
-import { WorkspaceQueryHandlerBase } from '../workspace-query-handler-base';
-
 import { ChangeCheckResult, QueryHandler } from '@/main/lib/types';
 import { parseApiError } from '@/shared/lib/axios';
 import { TaskListQueryInput } from '@/shared/queries/tasks/task-list';
 import { Event } from '@/shared/types/events';
 import { QueryError, QueryErrorCode } from '@/shared/queries';
-
-export class TaskListQueryHandler
-  extends WorkspaceQueryHandlerBase
-  implements QueryHandler<TaskListQueryInput>
-{
+import { appService } from '@/main/services/app-service';
+export class TaskListQueryHandler implements QueryHandler<TaskListQueryInput> {
   public async handleQuery(input: TaskListQueryInput): Promise<TaskListOutput> {
     try {
       return this.fetchTasks(input);
@@ -27,9 +22,8 @@ export class TaskListQueryHandler
     output: TaskListOutput
   ): Promise<ChangeCheckResult<TaskListQueryInput>> {
     if (
-      event.type === 'workspace_deleted' &&
-      event.workspace.accountId === input.accountId &&
-      event.workspace.id === input.workspaceId
+      event.type === 'account_deleted' &&
+      event.account.id === input.accountId
     ) {
       return {
         hasChanges: true,
@@ -46,7 +40,7 @@ export class TaskListQueryHandler
       const message = event.message;
       if (
         message.type === 'task_created' &&
-        message.task.workspaceId === input.workspaceId
+        message.task.createdBy === input.accountId
       ) {
         const newOutput = {
           ...output,
@@ -64,7 +58,7 @@ export class TaskListQueryHandler
 
       if (
         message.type === 'task_updated' &&
-        message.task.workspaceId === input.workspaceId
+        message.task.createdBy === input.accountId
       ) {
         const newOutput = {
           ...output,
@@ -81,7 +75,7 @@ export class TaskListQueryHandler
 
       if (
         message.type === 'task_log_created' &&
-        message.task.workspaceId === input.workspaceId
+        message.task.createdBy === input.accountId
       ) {
         const newOutput = {
           ...output,
@@ -98,7 +92,7 @@ export class TaskListQueryHandler
 
       if (
         message.type === 'task_artifact_created' &&
-        message.task.workspaceId === input.workspaceId
+        message.task.createdBy === input.accountId
       ) {
         const newOutput = {
           ...output,
@@ -120,17 +114,17 @@ export class TaskListQueryHandler
   }
 
   private async fetchTasks(input: TaskListQueryInput): Promise<TaskListOutput> {
-    const workspace = this.getWorkspace(input.accountId, input.workspaceId);
+    const account = appService.getAccount(input.accountId);
+    if (!account) {
+      throw new QueryError(QueryErrorCode.AccountNotFound, 'Account not found');
+    }
 
-    const response = await workspace.account.client.get<TaskListOutput>(
-      `/v1/workspaces/${workspace.id}/tasks`,
-      {
-        params: {
-          after: input.after,
-          limit: input.limit,
-        },
-      }
-    );
+    const response = await account.client.get<TaskListOutput>(`/v1/tasks`, {
+      params: {
+        after: input.after,
+        limit: input.limit,
+      },
+    });
 
     return response.data;
   }

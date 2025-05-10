@@ -11,6 +11,8 @@ import {
   TaskAttributes,
   TaskArtifactType,
   TaskLogLevel,
+  TaskStatus,
+  TaskArtifactStatus,
 } from '@colanode/core';
 import {
   ColumnType,
@@ -298,17 +300,16 @@ export type UpdateDocumentEmbedding = Updateable<DocumentEmbeddingTable>;
 
 interface TaskTable {
   id: ColumnType<string, string, never>;
-  workspace_id: ColumnType<string, string, never>;
   type: ColumnType<TaskType, never, never>;
   name: ColumnType<string, string, string>;
   description: ColumnType<string | null, string | null, string | null>;
   attributes: JSONColumnType<TaskAttributes, string, string>;
-  status: ColumnType<number, number, number>;
   created_at: ColumnType<Date, Date, never>;
   created_by: ColumnType<string, string, never>;
   started_at: ColumnType<Date | null, Date | null, Date | null>;
   active_at: ColumnType<Date | null, Date | null, Date | null>;
   completed_at: ColumnType<Date | null, Date | null, Date | null>;
+  status: ColumnType<TaskStatus, TaskStatus, TaskStatus>;
 }
 
 export type SelectTask = Selectable<TaskTable>;
@@ -332,11 +333,17 @@ interface TaskArtifactTable {
   task_id: ColumnType<string, string, never>;
   type: ColumnType<TaskArtifactType, TaskArtifactType>;
   name: ColumnType<string, string, string>;
+  description: ColumnType<string | null, string | null, string | null>;
   mime_type: ColumnType<string, string, string>;
   size: ColumnType<number, number, number>;
   path: ColumnType<string, string, string>;
   created_at: ColumnType<Date, Date, never>;
   expires_at: ColumnType<Date | null, Date | null, Date | null>;
+  status: ColumnType<
+    TaskArtifactStatus,
+    TaskArtifactStatus,
+    TaskArtifactStatus
+  >;
 }
 
 export type SelectTaskArtifact = Selectable<TaskArtifactTable>;

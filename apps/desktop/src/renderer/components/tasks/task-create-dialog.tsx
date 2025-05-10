@@ -37,6 +37,7 @@ export const TaskCreateDialog = ({
           'Export all data from this workspace into one or more files.',
         attributes: {
           type: 'export_workspace',
+          workspaceId: workspace.id,
         },
       },
       onSuccess: (data) => {

@@ -51,22 +51,11 @@ export const executeTaskHandler: JobHandler<ExecuteTaskInput> = async (
     return;
   }
 
-  const workspace = await database
-    .selectFrom('workspaces')
-    .where('id', '=', task.workspace_id)
-    .selectAll()
-    .executeTakeFirst();
-
-  if (!workspace) {
-    debug(`Workspace ${task.workspace_id} not found`);
-    return;
-  }
-
   if (task.attributes.type === 'export_workspace') {
-    const exporter = new WorkspaceExport(task, workspace);
+    const exporter = new WorkspaceExport(task);
     await exporter.export();
   } else if (task.attributes.type === 'import_workspace') {
-    const importer = new WorkspaceImport(task, workspace);
+    const importer = new WorkspaceImport(task);
     await importer.import();
   }
 };
