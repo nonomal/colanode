@@ -1,6 +1,7 @@
 import { SidebarMenu } from '@/renderer/components/layouts/sidebars/sidebar-menu';
 import { SidebarChats } from '@/renderer/components/layouts/sidebars/sidebar-chats';
 import { SidebarSpaces } from '@/renderer/components/layouts/sidebars/sidebar-spaces';
+import { SettingsSidebar } from '@/renderer/components/layouts/sidebars/sidebar-settings';
 import { SidebarMenuType } from '@/shared/types/workspaces';
 
 interface SidebarProps {
@@ -15,6 +16,7 @@ export const Sidebar = ({ menu, onMenuChange }: SidebarProps) => {
       <div className="min-h-0 flex-grow overflow-auto">
         {menu === 'spaces' && <SidebarSpaces />}
         {menu === 'chats' && <SidebarChats />}
+        {menu === 'settings' && <SettingsSidebar />}
       </div>
     </div>
   );

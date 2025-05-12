@@ -14,6 +14,14 @@ export type Workspace = {
 
 export enum SpecialContainerTabPath {
   WorkspaceSettings = 'workspace/settings',
+  AccountSettings = 'account/settings',
+  ApplicationSettings = 'application/settings',
+  WorkspaceGeneralSettings = 'workspace/settings/general',
+  WorkspaceUsersSettings = 'workspace/settings/users',
+  WorkspaceDeleteSettings = 'workspace/settings/delete',
+  AccountGeneralSettings = 'account/settings/general',
+  ApplicationDesktopSettings = 'application/settings/desktop',
+  ApplicationServerSettings = 'application/settings/server',
 }
 
 export type ContainerTab = {
@@ -27,7 +35,7 @@ export type ContainerMetadata = {
   width?: number;
 };
 
-export type SidebarMenuType = 'chats' | 'spaces';
+export type SidebarMenuType = 'chats' | 'spaces' | 'settings';
 
 export type SidebarMetadata = {
   menu: SidebarMenuType;

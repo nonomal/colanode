@@ -41,7 +41,7 @@ export const ChannelSidebarItem = ({ channel }: ChannelSidebarItemProps) => {
         id={channel.id}
         avatar={channel.attributes.avatar}
         name={channel.attributes.name}
-        className="h-4 w-4"
+        className="size-4"
       />
       <span
         className={cn(

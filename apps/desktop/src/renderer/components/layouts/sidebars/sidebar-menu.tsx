@@ -1,4 +1,4 @@
-import { LayoutGrid, MessageCircle } from 'lucide-react';
+import { LayoutGrid, MessageCircle, Settings } from 'lucide-react';
 
 import { SidebarMenuIcon } from '@/renderer/components/layouts/sidebars/sidebar-menu-icon';
 import { SidebarMenuHeader } from '@/renderer/components/layouts/sidebars/sidebar-menu-header';
@@ -43,6 +43,14 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
             onChange('spaces');
           }}
           isActive={value === 'spaces'}
+        />
+        <SidebarMenuIcon
+          icon={Settings}
+          onClick={() => {
+            onChange('settings');
+          }}
+          isActive={value === 'settings'}
+          className="mt-auto"
         />
       </div>
       <SidebarMenuFooter />
