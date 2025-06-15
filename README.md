@@ -29,7 +29,7 @@ All changes you make are saved to a local SQLite database first and then synced 
 
 ### Concurrent edits
 
-Colanode relies on **Conflict-free Replicated Data Types (CRDTs)** - powered by [Yjs](https://docs.yjs.dev/) - to allow real-time collaboration on entries like pages or database records. This means multiple people can edit at the same time, and the system gracefully merges everyone’s updates. Deletions are also tracked as specialized transactions. Messages and file operations don’t support concurrent edits and use simpler database tables.
+Colanode relies on **Conflict-free Replicated Data Types (CRDTs)** - powered by [Yjs](https://docs.yjs.dev/) - to allow real-time collaboration on entries like pages or database records. This means multiple people can edit at the same time, and the system gracefully merges everyone's updates. Deletions are also tracked as specialized transactions. Messages and file operations don't support concurrent edits and use simpler database tables.
 
 ## Get started for free
 
@@ -42,14 +42,14 @@ Both cloud servers are currently in beta and free to use; pricing will be announ
 
 ### Self-host with Docker
 
-If you prefer to host your own Colanode server, simply use the Docker Compose file in the root of this repository. In the near future, we’ll provide more detailed instructions for other environments, including Kubernetes. For now, here’s what you need to run Colanode yourself:
+If you prefer to host your own Colanode server, check out the [`hosting/`](hosting/) folder which contains the Docker Compose file and deployment configurations. For Kubernetes deployments, see the [`hosting/k8s/`](hosting/k8s/) folder which includes Helm charts and additional documentation. Here's what you need to run Colanode yourself:
 
 - **Postgres** with the **pgvector** extension.
 - **Redis** (any Redis-compatible service will work, e.g., Valkey).
 - **S3-compatible storage** (supporting basic file operations and presigned URLs).
 - **Colanode server API**, provided as a Docker image.
 
-All required environment variables for the Colanode server can be found in the docker-compose file.
+All required environment variables for the Colanode server can be found in the [`hosting/docker-compose.yml`](hosting/docker-compose.yml) file or [`hosting/k8s/README.md`](hosting/k8s/README.md) for Kubernetes deployments.
 
 ## License
 
