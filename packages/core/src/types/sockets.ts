@@ -1,7 +1,18 @@
-import { SynchronizerInput, SynchronizerMap } from '../synchronizers';
+import { z } from 'zod/v4';
+
+import {
+  SynchronizerInput,
+  SynchronizerMap,
+} from '@colanode/core/synchronizers';
+
+export const socketInitOutputSchema = z.object({
+  id: z.string(),
+});
+
+export type SocketInitOutput = z.infer<typeof socketInitOutputSchema>;
 
 export type SynchronizerInputMessage = {
-  type: 'synchronizer_input';
+  type: 'synchronizer.input';
   id: string;
   userId: string;
   input: SynchronizerInput;
@@ -9,7 +20,7 @@ export type SynchronizerInputMessage = {
 };
 
 export type SynchronizerOutputMessage<TInput extends SynchronizerInput> = {
-  type: 'synchronizer_output';
+  type: 'synchronizer.output';
   userId: string;
   id: string;
   items: {
@@ -19,29 +30,29 @@ export type SynchronizerOutputMessage<TInput extends SynchronizerInput> = {
 };
 
 export type AccountUpdatedMessage = {
-  type: 'account_updated';
+  type: 'account.updated';
   accountId: string;
 };
 
 export type WorkspaceUpdatedMessage = {
-  type: 'workspace_updated';
+  type: 'workspace.updated';
   workspaceId: string;
 };
 
 export type WorkspaceDeletedMessage = {
-  type: 'workspace_deleted';
+  type: 'workspace.deleted';
   accountId: string;
 };
 
 export type UserCreatedMessage = {
-  type: 'user_created';
+  type: 'user.created';
   accountId: string;
   workspaceId: string;
   userId: string;
 };
 
 export type UserUpdatedMessage = {
-  type: 'user_updated';
+  type: 'user.updated';
   accountId: string;
   userId: string;
 };

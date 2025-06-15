@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { sql } from 'kysely';
 
-import { database } from '@/data/database';
-import { redis } from '@/data/redis';
-import { config } from '@/lib/config';
+import { database } from '@colanode/server/data/database';
+import { redis } from '@colanode/server/data/redis';
+import { config } from '@colanode/server/lib/config';
 
 const healthResponseSchema = z.object({
   status: z.enum(['healthy', 'unhealthy']),
@@ -89,17 +89,17 @@ export const healthRoute: FastifyPluginCallbackZod = (instance, _, done) => {
 
         // Create a properly configured S3 client with forcePathStyle for health check
         const healthCheckS3 = new S3Client({
-          endpoint: config.avatarS3.endpoint,
-          region: config.avatarS3.region,
+          endpoint: config.storage.endpoint,
+          region: config.storage.region,
           forcePathStyle: true,
           credentials: {
-            accessKeyId: config.avatarS3.accessKey,
-            secretAccessKey: config.avatarS3.secretKey,
+            accessKeyId: config.storage.accessKey,
+            secretAccessKey: config.storage.secretKey,
           },
         });
 
         const command = new HeadObjectCommand({
-          Bucket: config.avatarS3.bucketName,
+          Bucket: config.storage.bucket,
           Key: 'health-check',
         });
         try {

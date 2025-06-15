@@ -1,20 +1,9 @@
-import { ChatOpenAI } from '@langchain/openai';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { StringOutputParser } from '@langchain/core/output_parsers';
 import { Document } from '@langchain/core/documents';
-import { NodeType, RecordNode } from '@colanode/core';
+import { StringOutputParser } from '@langchain/core/output_parsers';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatOpenAI } from '@langchain/openai';
 
-import { config } from '@/lib/config';
-import {
-  rerankedDocumentsSchema,
-  RerankedDocuments,
-  citedAnswerSchema,
-  CitedAnswer,
-  databaseFilterSchema,
-  DatabaseFilterResult,
-  RewrittenQuery,
-  rewrittenQuerySchema,
-} from '@/types/llm';
+import { NodeType, RecordNode } from '@colanode/core';
 import {
   queryRewritePrompt,
   summarizationPrompt,
@@ -24,7 +13,18 @@ import {
   noContextPrompt,
   databaseFilterPrompt,
   chunkSummarizationPrompt,
-} from '@/lib/ai/prompts';
+} from '@colanode/server/lib/ai/prompts';
+import { config } from '@colanode/server/lib/config';
+import {
+  rerankedDocumentsSchema,
+  RerankedDocuments,
+  citedAnswerSchema,
+  CitedAnswer,
+  databaseFilterSchema,
+  DatabaseFilterResult,
+  RewrittenQuery,
+  rewrittenQuerySchema,
+} from '@colanode/server/types/llm';
 
 const getChatModel = (task: string): ChatOpenAI | ChatGoogleGenerativeAI => {
   if (!config.ai.enabled) {
@@ -59,7 +59,9 @@ const getChatModel = (task: string): ChatOpenAI | ChatGoogleGenerativeAI => {
 export const rewriteQuery = async (query: string): Promise<RewrittenQuery> => {
   const task = 'queryRewrite';
   const model = getChatModel(task).withStructuredOutput(rewrittenQuerySchema);
-  return queryRewritePrompt.pipe(model).invoke({ query });
+  return queryRewritePrompt
+    .pipe(model)
+    .invoke({ query }) as unknown as RewrittenQuery;
 };
 
 export const summarizeDocument = async (
@@ -174,9 +176,10 @@ ${db.sampleRecords
     )
     .join('\n\n');
 
-  return databaseFilterPrompt
-    .pipe(model)
-    .invoke({ query: args.query, databasesInfo });
+  return databaseFilterPrompt.pipe(model).invoke({
+    query: args.query,
+    databasesInfo,
+  }) as unknown as DatabaseFilterResult;
 };
 
 export const enrichChunk = async (

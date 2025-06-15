@@ -1,5 +1,5 @@
 import { FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
+
 import {
   accountUpdateInputSchema,
   AccountUpdateOutput,
@@ -7,9 +7,8 @@ import {
   ApiErrorCode,
   apiErrorOutputSchema,
 } from '@colanode/core';
-
-import { database } from '@/data/database';
-import { eventBus } from '@/lib/event-bus';
+import { database } from '@colanode/server/data/database';
+import { eventBus } from '@colanode/server/lib/event-bus';
 
 export const accountUpdateRoute: FastifyPluginCallbackZod = (
   instance,
@@ -17,12 +16,9 @@ export const accountUpdateRoute: FastifyPluginCallbackZod = (
   done
 ) => {
   instance.route({
-    method: 'PUT',
-    url: '/:accountId',
+    method: 'PATCH',
+    url: '/',
     schema: {
-      params: z.object({
-        accountId: z.string(),
-      }),
       body: accountUpdateInputSchema,
       response: {
         200: accountUpdateOutputSchema,
@@ -32,16 +28,7 @@ export const accountUpdateRoute: FastifyPluginCallbackZod = (
       },
     },
     handler: async (request, reply) => {
-      const accountId = request.params.accountId;
       const input = request.body;
-
-      if (accountId !== request.account.id) {
-        return reply.code(400).send({
-          code: ApiErrorCode.AccountMismatch,
-          message:
-            'The provided account id does not match the account id in the token. Make sure you are using the correct account token.',
-        });
-      }
 
       const account = await database
         .selectFrom('accounts')
@@ -110,14 +97,14 @@ export const accountUpdateRoute: FastifyPluginCallbackZod = (
       }
 
       eventBus.publish({
-        type: 'account_updated',
+        type: 'account.updated',
         accountId: account.id,
       });
 
       if (updatedUsers.length > 0) {
         for (const user of updatedUsers) {
           eventBus.publish({
-            type: 'user_updated',
+            type: 'user.updated',
             userId: user.id,
             accountId: account.id,
             workspaceId: user.workspace_id,

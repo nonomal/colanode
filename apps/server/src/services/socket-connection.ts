@@ -1,4 +1,5 @@
 import { WebSocket } from 'ws';
+
 import {
   Message,
   SynchronizerInput,
@@ -6,9 +7,15 @@ import {
   UserStatus,
   createDebugger,
 } from '@colanode/core';
-
-import { RequestAccount } from '@/types/api';
-import { database } from '@/data/database';
+import { database } from '@colanode/server/data/database';
+import { BaseSynchronizer } from '@colanode/server/synchronizers/base';
+import { CollaborationSynchronizer } from '@colanode/server/synchronizers/collaborations';
+import { DocumentUpdateSynchronizer } from '@colanode/server/synchronizers/document-updates';
+import { NodeInteractionSynchronizer } from '@colanode/server/synchronizers/node-interactions';
+import { NodeReactionSynchronizer } from '@colanode/server/synchronizers/node-reactions';
+import { NodeTombstoneSynchronizer } from '@colanode/server/synchronizers/node-tombstones';
+import { NodeUpdatesSynchronizer } from '@colanode/server/synchronizers/node-updates';
+import { UserSynchronizer } from '@colanode/server/synchronizers/users';
 import {
   AccountUpdatedEvent,
   CollaborationCreatedEvent,
@@ -18,16 +25,9 @@ import {
   UserUpdatedEvent,
   WorkspaceDeletedEvent,
   WorkspaceUpdatedEvent,
-} from '@/types/events';
-import { ConnectedUser } from '@/types/users';
-import { BaseSynchronizer } from '@/synchronizers/base';
-import { UserSynchronizer } from '@/synchronizers/users';
-import { CollaborationSynchronizer } from '@/synchronizers/collaborations';
-import { NodeUpdatesSynchronizer } from '@/synchronizers/node-updates';
-import { NodeReactionSynchronizer } from '@/synchronizers/node-reactions';
-import { NodeTombstoneSynchronizer } from '@/synchronizers/node-tombstones';
-import { NodeInteractionSynchronizer } from '@/synchronizers/node-interactions';
-import { DocumentUpdateSynchronizer } from '@/synchronizers/document-updates';
+} from '@colanode/server/types/events';
+import { SocketContext } from '@colanode/server/types/sockets';
+import { ConnectedUser } from '@colanode/server/types/users';
 
 type SocketUser = {
   user: ConnectedUser;
@@ -38,31 +38,41 @@ type SocketUser = {
 const debug = createDebugger('server:service:socket-connection');
 
 export class SocketConnection {
-  private readonly account: RequestAccount;
+  private readonly context: SocketContext;
   private readonly socket: WebSocket;
 
   private readonly users: Map<string, SocketUser> = new Map();
   private readonly pendingUsers: Map<string, Promise<SocketUser | null>> =
     new Map();
 
-  constructor(account: RequestAccount, socket: WebSocket) {
-    debug(`New connection, account:${account.id}, device:${account.deviceId}`);
+  constructor(context: SocketContext, socket: WebSocket, onClose: () => void) {
+    debug(
+      `New connection, account:${context.accountId}, device:${context.deviceId}`
+    );
 
-    this.account = account;
+    this.context = context;
     this.socket = socket;
 
     this.socket.on('message', (data) => {
       const message = JSON.parse(data.toString()) as Message;
       this.handleMessage(message);
     });
+
+    this.socket.on('close', () => {
+      debug(
+        `Connection closed, account:${this.context.accountId}, device:${this.context.deviceId}`
+      );
+
+      onClose();
+    });
   }
 
   public getDeviceId() {
-    return this.account.deviceId;
+    return this.context.deviceId;
   }
 
   public getAccountId() {
-    return this.account.id;
+    return this.context.accountId;
   }
 
   public sendMessage(message: Message) {
@@ -75,28 +85,28 @@ export class SocketConnection {
 
   private async handleMessage(message: Message) {
     debug(
-      `Socket message, account:${this.account.id}, device:${this.account.deviceId}, type:${message.type}`
+      `Socket message, account:${this.context.accountId}, device:${this.context.deviceId}, type:${message.type}`
     );
 
-    if (message.type === 'synchronizer_input') {
+    if (message.type === 'synchronizer.input') {
       this.handleSynchronizerInput(message);
     }
   }
 
   public async handleEvent(event: Event) {
-    if (event.type === 'account_updated') {
+    if (event.type === 'account.updated') {
       this.handleAccountUpdatedEvent(event);
-    } else if (event.type === 'workspace_updated') {
+    } else if (event.type === 'workspace.updated') {
       this.handleWorkspaceUpdatedEvent(event);
-    } else if (event.type === 'workspace_deleted') {
+    } else if (event.type === 'workspace.deleted') {
       this.handleWorkspaceDeletedEvent(event);
-    } else if (event.type === 'collaboration_created') {
+    } else if (event.type === 'collaboration.created') {
       this.handleCollaborationCreatedEvent(event);
-    } else if (event.type === 'collaboration_updated') {
+    } else if (event.type === 'collaboration.updated') {
       this.handleCollaborationUpdatedEvent(event);
-    } else if (event.type === 'user_created') {
+    } else if (event.type === 'user.created') {
       this.handleUserCreatedEvent(event);
-    } else if (event.type === 'user_updated') {
+    } else if (event.type === 'user.updated') {
       this.handleUserUpdatedEvent(event);
     }
 
@@ -145,7 +155,7 @@ export class SocketConnection {
         message.input,
         cursor
       );
-    } else if (message.input.type === 'nodes_updates') {
+    } else if (message.input.type === 'nodes.updates') {
       if (!user.rootIds.has(message.input.rootId)) {
         return null;
       }
@@ -156,21 +166,21 @@ export class SocketConnection {
         message.input,
         cursor
       );
-    } else if (message.input.type === 'node_reactions') {
+    } else if (message.input.type === 'node.reactions') {
       return new NodeReactionSynchronizer(
         message.id,
         user.user,
         message.input,
         cursor
       );
-    } else if (message.input.type === 'node_interactions') {
+    } else if (message.input.type === 'node.interactions') {
       return new NodeInteractionSynchronizer(
         message.id,
         user.user,
         message.input,
         cursor
       );
-    } else if (message.input.type === 'node_tombstones') {
+    } else if (message.input.type === 'node.tombstones') {
       if (!user.rootIds.has(message.input.rootId)) {
         return null;
       }
@@ -181,7 +191,7 @@ export class SocketConnection {
         message.input,
         cursor
       );
-    } else if (message.input.type === 'document_updates') {
+    } else if (message.input.type === 'document.updates') {
       if (!user.rootIds.has(message.input.rootId)) {
         return null;
       }
@@ -231,7 +241,7 @@ export class SocketConnection {
     if (
       !user ||
       user.status !== UserStatus.Active ||
-      user.account_id !== this.account.id
+      user.account_id !== this.context.accountId
     ) {
       return null;
     }
@@ -251,8 +261,8 @@ export class SocketConnection {
     const connectedUser: ConnectedUser = {
       userId: user.id,
       workspaceId: user.workspace_id,
-      accountId: this.account.id,
-      deviceId: this.account.deviceId,
+      accountId: this.context.accountId,
+      deviceId: this.context.deviceId,
     };
 
     const rootIds = new Set<string>();
@@ -275,13 +285,13 @@ export class SocketConnection {
   }
 
   private handleAccountUpdatedEvent(event: AccountUpdatedEvent) {
-    if (event.accountId !== this.account.id) {
+    if (event.accountId !== this.context.accountId) {
       return;
     }
 
     this.sendMessage({
-      type: 'account_updated',
-      accountId: this.account.id,
+      type: 'account.updated',
+      accountId: this.context.accountId,
     });
   }
 
@@ -295,7 +305,7 @@ export class SocketConnection {
     }
 
     this.sendMessage({
-      type: 'workspace_updated',
+      type: 'workspace.updated',
       workspaceId: event.workspaceId,
     });
   }
@@ -310,8 +320,8 @@ export class SocketConnection {
     }
 
     this.sendMessage({
-      type: 'workspace_deleted',
-      accountId: this.account.id,
+      type: 'workspace.deleted',
+      accountId: this.context.accountId,
     });
   }
 
@@ -347,12 +357,12 @@ export class SocketConnection {
   }
 
   private handleUserCreatedEvent(event: UserCreatedEvent) {
-    if (event.accountId !== this.account.id) {
+    if (event.accountId !== this.context.accountId) {
       return;
     }
 
     this.sendMessage({
-      type: 'user_created',
+      type: 'user.created',
       accountId: event.accountId,
       workspaceId: event.workspaceId,
       userId: event.userId,
@@ -360,12 +370,12 @@ export class SocketConnection {
   }
 
   private handleUserUpdatedEvent(event: UserUpdatedEvent) {
-    if (event.accountId !== this.account.id) {
+    if (event.accountId !== this.context.accountId) {
       return;
     }
 
     this.sendMessage({
-      type: 'user_updated',
+      type: 'user.updated',
       accountId: event.accountId,
       userId: event.userId,
     });

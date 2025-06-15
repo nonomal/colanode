@@ -1,14 +1,14 @@
 import { FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
+import { z } from 'zod/v4';
+
 import {
   ApiErrorCode,
   apiErrorOutputSchema,
   workspaceOutputSchema,
 } from '@colanode/core';
-
-import { database } from '@/data/database';
-import { eventBus } from '@/lib/event-bus';
-import { jobService } from '@/services/job-service';
+import { database } from '@colanode/server/data/database';
+import { eventBus } from '@colanode/server/lib/event-bus';
+import { jobService } from '@colanode/server/services/job-service';
 
 export const workspaceDeleteRoute: FastifyPluginCallbackZod = (
   instance,
@@ -48,11 +48,11 @@ export const workspaceDeleteRoute: FastifyPluginCallbackZod = (
 
       await jobService.addJob(
         {
-          type: 'clean_workspace_data',
+          type: 'workspace.clean',
           workspaceId: workspaceId,
         },
         {
-          jobId: `clean_workspace_data_${workspaceId}`,
+          jobId: `workspace.clean.${workspaceId}`,
           attempts: 5,
           backoff: {
             type: 'exponential',
@@ -70,7 +70,7 @@ export const workspaceDeleteRoute: FastifyPluginCallbackZod = (
       }
 
       eventBus.publish({
-        type: 'workspace_deleted',
+        type: 'workspace.deleted',
         workspaceId: workspaceId,
       });
 

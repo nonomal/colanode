@@ -1,12 +1,11 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
-import { NodeModel } from './core';
-
-import { blockSchema } from '../block';
-import { extractBlockTexts } from '../../lib/texts';
-import { extractNodeRole } from '../../lib/nodes';
-import { hasNodeRole } from '../../lib/permissions';
-import { extractBlocksMentions } from '../../lib/mentions';
+import { extractBlocksMentions } from '@colanode/core/lib/mentions';
+import { extractNodeRole } from '@colanode/core/lib/nodes';
+import { hasNodeRole } from '@colanode/core/lib/permissions';
+import { extractBlockTexts } from '@colanode/core/lib/texts';
+import { blockSchema } from '@colanode/core/registry/block';
+import { NodeModel } from '@colanode/core/registry/nodes/core';
 
 export const messageAttributesSchema = z.object({
   type: z.literal('message'),
@@ -14,7 +13,7 @@ export const messageAttributesSchema = z.object({
   name: z.string().optional(),
   parentId: z.string(),
   referenceId: z.string().nullable().optional(),
-  content: z.record(blockSchema).optional().nullable(),
+  content: z.record(z.string(), blockSchema).optional().nullable(),
   selectedContextNodeIds: z.array(z.string()).optional().nullable(),
 });
 

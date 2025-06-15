@@ -2,12 +2,14 @@ import {
   SynchronizerOutputMessage,
   SyncUserData,
   SyncUsersInput,
+  createDebugger,
 } from '@colanode/core';
+import { database } from '@colanode/server/data/database';
+import { SelectUser } from '@colanode/server/data/schema';
+import { BaseSynchronizer } from '@colanode/server/synchronizers/base';
+import { Event } from '@colanode/server/types/events';
 
-import { BaseSynchronizer } from '@/synchronizers/base';
-import { Event } from '@/types/events';
-import { database } from '@/data/database';
-import { SelectUser } from '@/data/schema';
+const debug = createDebugger('user-synchronizer');
 
 export class UserSynchronizer extends BaseSynchronizer<SyncUsersInput> {
   public async fetchData(): Promise<SynchronizerOutputMessage<SyncUsersInput> | null> {
@@ -40,17 +42,25 @@ export class UserSynchronizer extends BaseSynchronizer<SyncUsersInput> {
     }
 
     this.status = 'fetching';
-    const users = await database
-      .selectFrom('users')
-      .selectAll()
-      .where('workspace_id', '=', this.user.workspaceId)
-      .where('revision', '>', this.cursor)
-      .orderBy('revision', 'asc')
-      .limit(50)
-      .execute();
 
-    this.status = 'pending';
-    return users;
+    try {
+      const users = await database
+        .selectFrom('users')
+        .selectAll()
+        .where('workspace_id', '=', this.user.workspaceId)
+        .where('revision', '>', this.cursor)
+        .orderBy('revision', 'asc')
+        .limit(50)
+        .execute();
+
+      return users;
+    } catch (error) {
+      debug('Error fetching users for sync', error);
+    } finally {
+      this.status = 'pending';
+    }
+
+    return [];
   }
 
   private buildMessage(
@@ -72,7 +82,7 @@ export class UserSynchronizer extends BaseSynchronizer<SyncUsersInput> {
     }));
 
     return {
-      type: 'synchronizer_output',
+      type: 'synchronizer.output',
       userId: this.user.userId,
       id: this.id,
       items: items.map((item) => ({
@@ -84,14 +94,14 @@ export class UserSynchronizer extends BaseSynchronizer<SyncUsersInput> {
 
   private shouldFetch(event: Event) {
     if (
-      event.type === 'user_created' &&
+      event.type === 'user.created' &&
       event.workspaceId === this.user.workspaceId
     ) {
       return true;
     }
 
     if (
-      event.type === 'user_updated' &&
+      event.type === 'user.updated' &&
       event.workspaceId === this.user.workspaceId
     ) {
       return true;

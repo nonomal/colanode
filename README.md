@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Colanode cover" src="apps/desktop/assets/colanode-cover-black.png">
+  <img alt="Colanode cover" src="assets/images/colanode-cover-black.png">
 </p>
 
 # Colanode
@@ -17,11 +17,11 @@ Colanode is an all-in-one platform for easy collaboration, built to prioritize y
 
 Built for both individuals and teams, Colanode adapts to your needs, whether you're running a small project, managing a team, or collaborating across an entire organization. With its self-hosted model, you retain full control over your data while enjoying a polished, feature-rich experience.
 
-![Colanode preview](apps/desktop/assets/colanode-desktop-preview.gif)
+![Colanode preview](assets/images/colanode-desktop-preview.gif)
 
 ## How it works
 
-Colanode includes a desktop app and a self-hosted server. You can connect to multiple servers with a single app, each containing one or more **workspaces** for different teams or projects. After logging in, you pick a workspace to start collaborating—sending messages, editing pages, or updating database records.
+Colanode includes a client app (web or desktop) and a self-hosted server. You can connect to multiple servers with a single app, each containing one or more **workspaces** for different teams or projects. After logging in, you pick a workspace to start collaborating—sending messages, editing pages, or updating database records.
 
 ### Local-first workflow
 
@@ -33,12 +33,14 @@ Colanode relies on **Conflict-free Replicated Data Types (CRDTs)** - powered by 
 
 ## Get started for free
 
-To begin using Colanode, **download the official desktop app** from the [website](https://colanode.com/downloads). Once installed, you can connect to any Colanode server—including our free beta cloud servers:
+The easiest way to start using Colanode is through our **web app**, accessible instantly at [app.colanode.com](https://app.colanode.com). Simply log in to get started immediately, without any installation. _Please note, the web app is currently in early preview and under testing; you may encounter bugs or compatibility issues in certain browsers._
+
+For optimal performance, you can install our **desktop app**, available from our [downloads page](https://colanode.com/downloads). Both the web and desktop apps allow you to connect to any of our free beta cloud servers:
 
 - **Colanode Cloud (EU)** – hosted in Europe.
 - **Colanode Cloud (US)** – hosted in the United States.
 
-Both cloud servers are currently in beta and free to use; pricing will be announced soon.
+Both cloud servers are currently available in beta and free to use; pricing details will be announced soon.
 
 ### Self-host with Docker
 
@@ -46,7 +48,7 @@ If you prefer to host your own Colanode server, check out the [`hosting/`](hosti
 
 - **Postgres** with the **pgvector** extension.
 - **Redis** (any Redis-compatible service will work, e.g., Valkey).
-- **S3-compatible storage** (supporting basic file operations and presigned URLs).
+- **S3-compatible storage** (supporting basic file operations: PUT, GET, DELETE).
 - **Colanode server API**, provided as a Docker image.
 
 All required environment variables for the Colanode server can be found in the [`hosting/docker-compose.yml`](hosting/docker-compose.yml) file or [`hosting/k8s/README.md`](hosting/k8s/README.md) for Kubernetes deployments.

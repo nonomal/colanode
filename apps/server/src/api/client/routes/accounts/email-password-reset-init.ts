@@ -1,4 +1,5 @@
 import { FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
+
 import {
   generateId,
   IdType,
@@ -8,13 +9,15 @@ import {
   emailPasswordResetInitOutputSchema,
   emailPasswordResetInitInputSchema,
 } from '@colanode/core';
-
-import { database } from '@/data/database';
-import { isAuthEmailRateLimited } from '@/lib/rate-limits';
-import { config } from '@/lib/config';
-import { generateOtpCode, saveOtp } from '@/lib/otps';
-import { AccountPasswordResetOtpAttributes, Otp } from '@/types/otps';
-import { jobService } from '@/services/job-service';
+import { database } from '@colanode/server/data/database';
+import { config } from '@colanode/server/lib/config';
+import { generateOtpCode, saveOtp } from '@colanode/server/lib/otps';
+import { isAuthEmailRateLimited } from '@colanode/server/lib/rate-limits';
+import { jobService } from '@colanode/server/services/job-service';
+import {
+  AccountPasswordResetOtpAttributes,
+  Otp,
+} from '@colanode/server/types/otps';
 
 export const emailPasswordResetInitRoute: FastifyPluginCallbackZod = (
   instance,
@@ -46,7 +49,7 @@ export const emailPasswordResetInitRoute: FastifyPluginCallbackZod = (
 
       const id = generateId(IdType.OtpCode);
       const expiresAt = new Date(Date.now() + config.account.otpTimeout * 1000);
-      const otpCode = await generateOtpCode();
+      const otpCode = generateOtpCode();
 
       const account = await database
         .selectFrom('accounts')
@@ -74,7 +77,7 @@ export const emailPasswordResetInitRoute: FastifyPluginCallbackZod = (
 
       await saveOtp(id, otp);
       await jobService.addJob({
-        type: 'send_email_password_reset_email',
+        type: 'email.password.reset.send',
         otpId: id,
       });
 

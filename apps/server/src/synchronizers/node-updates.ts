@@ -2,13 +2,15 @@ import {
   SynchronizerOutputMessage,
   SyncNodesUpdatesInput,
   SyncNodeUpdateData,
+  createDebugger,
 } from '@colanode/core';
 import { encodeState } from '@colanode/crdt';
+import { database } from '@colanode/server/data/database';
+import { SelectNodeUpdate } from '@colanode/server/data/schema';
+import { BaseSynchronizer } from '@colanode/server/synchronizers/base';
+import { Event } from '@colanode/server/types/events';
 
-import { BaseSynchronizer } from '@/synchronizers/base';
-import { Event } from '@/types/events';
-import { database } from '@/data/database';
-import { SelectNodeUpdate } from '@/data/schema';
+const debug = createDebugger('node-update-synchronizer');
 
 export class NodeUpdatesSynchronizer extends BaseSynchronizer<SyncNodesUpdatesInput> {
   public async fetchData(): Promise<SynchronizerOutputMessage<SyncNodesUpdatesInput> | null> {
@@ -41,17 +43,25 @@ export class NodeUpdatesSynchronizer extends BaseSynchronizer<SyncNodesUpdatesIn
     }
 
     this.status = 'fetching';
-    const nodesUpdates = await database
-      .selectFrom('node_updates')
-      .selectAll()
-      .where('root_id', '=', this.input.rootId)
-      .where('revision', '>', this.cursor)
-      .orderBy('revision', 'asc')
-      .limit(20)
-      .execute();
 
-    this.status = 'pending';
-    return nodesUpdates;
+    try {
+      const nodesUpdates = await database
+        .selectFrom('node_updates')
+        .selectAll()
+        .where('root_id', '=', this.input.rootId)
+        .where('revision', '>', this.cursor)
+        .orderBy('revision', 'asc')
+        .limit(20)
+        .execute();
+
+      return nodesUpdates;
+    } catch (error) {
+      debug('Error fetching node updates for sync', error);
+    } finally {
+      this.status = 'pending';
+    }
+
+    return [];
   }
 
   private buildMessage(
@@ -74,7 +84,7 @@ export class NodeUpdatesSynchronizer extends BaseSynchronizer<SyncNodesUpdatesIn
     );
 
     return {
-      type: 'synchronizer_output',
+      type: 'synchronizer.output',
       userId: this.user.userId,
       id: this.id,
       items: items.map((item) => ({
@@ -85,11 +95,11 @@ export class NodeUpdatesSynchronizer extends BaseSynchronizer<SyncNodesUpdatesIn
   }
 
   private shouldFetch(event: Event) {
-    if (event.type === 'node_created' && event.rootId === this.input.rootId) {
+    if (event.type === 'node.created' && event.rootId === this.input.rootId) {
       return true;
     }
 
-    if (event.type === 'node_updated' && event.rootId === this.input.rootId) {
+    if (event.type === 'node.updated' && event.rootId === this.input.rootId) {
       return true;
     }
 

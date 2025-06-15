@@ -1,14 +1,15 @@
 import { FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
+import { z } from 'zod/v4';
+
 import {
   ApiErrorCode,
   UserStatus,
   userRoleUpdateInputSchema,
   apiErrorOutputSchema,
+  userOutputSchema,
 } from '@colanode/core';
-
-import { database } from '@/data/database';
-import { eventBus } from '@/lib/event-bus';
+import { database } from '@colanode/server/data/database';
+import { eventBus } from '@colanode/server/lib/event-bus';
 
 export const userRoleUpdateRoute: FastifyPluginCallbackZod = (
   instance,
@@ -16,15 +17,15 @@ export const userRoleUpdateRoute: FastifyPluginCallbackZod = (
   done
 ) => {
   instance.route({
-    method: 'PUT',
-    url: '/:userId',
+    method: 'PATCH',
+    url: '/:userId/role',
     schema: {
       params: z.object({
         userId: z.string(),
       }),
       body: userRoleUpdateInputSchema,
       response: {
-        200: z.object({ success: z.boolean() }),
+        200: userOutputSchema,
         400: apiErrorOutputSchema,
         403: apiErrorOutputSchema,
         404: apiErrorOutputSchema,
@@ -57,8 +58,10 @@ export const userRoleUpdateRoute: FastifyPluginCallbackZod = (
 
       const status =
         input.role === 'none' ? UserStatus.Removed : UserStatus.Active;
-      await database
+
+      const updatedUser = await database
         .updateTable('users')
+        .returningAll()
         .set({
           role: input.role,
           status,
@@ -66,16 +69,35 @@ export const userRoleUpdateRoute: FastifyPluginCallbackZod = (
           updated_by: user.id,
         })
         .where('id', '=', userToUpdate.id)
-        .execute();
+        .executeTakeFirst();
+
+      if (!updatedUser) {
+        return reply.code(400).send({
+          code: ApiErrorCode.UserNotFound,
+          message: 'User not found.',
+        });
+      }
 
       eventBus.publish({
-        type: 'user_updated',
+        type: 'user.updated',
         userId: userToUpdate.id,
         accountId: userToUpdate.account_id,
         workspaceId: userToUpdate.workspace_id,
       });
 
-      return { success: true };
+      return {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        avatar: updatedUser.avatar,
+        role: updatedUser.role,
+        customName: updatedUser.custom_name,
+        customAvatar: updatedUser.custom_avatar,
+        createdAt: updatedUser.created_at.toISOString(),
+        updatedAt: updatedUser.updated_at?.toISOString() ?? null,
+        revision: updatedUser.revision,
+        status: updatedUser.status,
+      };
     },
   });
 

@@ -1,8 +1,8 @@
 import { FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
-import { database } from '@/data/database';
-import { eventBus } from '@/lib/event-bus';
+import { database } from '@colanode/server/data/database';
+import { eventBus } from '@colanode/server/lib/event-bus';
 
 export const logoutRoute: FastifyPluginCallbackZod = (instance, _, done) => {
   instance.route({
@@ -22,7 +22,7 @@ export const logoutRoute: FastifyPluginCallbackZod = (instance, _, done) => {
         .execute();
 
       eventBus.publish({
-        type: 'device_deleted',
+        type: 'device.deleted',
         accountId: account.id,
         deviceId: account.deviceId,
       });

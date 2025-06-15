@@ -1,7 +1,10 @@
-import type { ConfigEnv, UserConfig } from 'vite';
-import { defineConfig } from 'vite';
+/// <reference types="./forge.env.d.ts" />
 
 import path from 'path';
+
+import react from '@vitejs/plugin-react';
+import type { ConfigEnv, UserConfig } from 'vite';
+import { defineConfig } from 'vite';
 
 import { pluginExposeRenderer } from './vite.base.config';
 
@@ -18,11 +21,17 @@ export default defineConfig((env) => {
     build: {
       outDir: `.vite/renderer/${name}`,
     },
-    plugins: [pluginExposeRenderer(name)],
+    plugins: [react(), pluginExposeRenderer(name)],
     resolve: {
-      preserveSymlinks: true,
       alias: {
-        '@': path.resolve(__dirname, './src'),
+        '@colanode/desktop': path.resolve(__dirname, './src'),
+        '@colanode/core': path.resolve(__dirname, '../../packages/core/src'),
+        '@colanode/crdt': path.resolve(__dirname, '../../packages/crdt/src'),
+        '@colanode/client': path.resolve(
+          __dirname,
+          '../../packages/client/src'
+        ),
+        '@colanode/ui': path.resolve(__dirname, '../../packages/ui/src'),
       },
     },
     clearScreen: false,

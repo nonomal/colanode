@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ZodText } from '@colanode/core';
 import { diffChars } from 'diff';
 import { fromUint8Array, toUint8Array } from 'js-base64';
 import { isEqual } from 'lodash-es';
 import * as Y from 'yjs';
-import { z, ZodSchema } from 'zod';
+import { z } from 'zod/v4';
+
+import { ZodText } from '@colanode/core';
 
 export const encodeState = (state: Uint8Array) => {
   return fromUint8Array(state);
@@ -37,7 +38,7 @@ export class YDoc {
   }
 
   public update(
-    schema: ZodSchema,
+    schema: z.ZodSchema,
     object: z.infer<typeof schema>
   ): Uint8Array | null {
     if (!schema.safeParse(object).success) {
@@ -106,7 +107,7 @@ export class YDoc {
   }
 
   private applyObjectChanges(
-    schema: z.ZodObject<any, any, any, any>,
+    schema: z.ZodObject,
     attributes: any,
     yMap: Y.Map<any>
   ) {
@@ -275,7 +276,7 @@ export class YDoc {
     record: Record<any, any>,
     yMap: Y.Map<any>
   ) {
-    const valueSchema = this.extractType(schemaField.valueSchema, record);
+    const valueSchema = this.extractType(schemaField.valueType, record);
     for (const [key, value] of Object.entries(record)) {
       if (value === null || value === undefined) {
         if (yMap.has(key)) {
@@ -373,24 +374,22 @@ export class YDoc {
     }
   }
 
-  private extractType(
-    schema: z.ZodType<any, any, any>,
-    value: any
-  ): z.ZodType<any, any, any> {
+  private extractType(schema: z.ZodType, value: unknown): z.ZodType {
     if (schema instanceof z.ZodOptional) {
-      return this.extractType(schema.unwrap(), value);
+      return this.extractType(schema.unwrap() as z.ZodType, value);
     }
 
     if (schema instanceof z.ZodNullable) {
-      return this.extractType(schema.unwrap(), value);
+      return this.extractType(schema.unwrap() as z.ZodType, value);
     }
 
     if (
       schema instanceof z.ZodUnion ||
       schema instanceof z.ZodDiscriminatedUnion
     ) {
-      for (const option of schema.options) {
-        if (option.safeParse(value).success) {
+      const options = schema.options as z.ZodType[];
+      for (const option of options) {
+        if (z.safeParse(option, value).success) {
           return this.extractType(option, value);
         }
       }

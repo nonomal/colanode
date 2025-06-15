@@ -1,9 +1,8 @@
 import { Job, JobsOptions, Queue, Worker } from 'bullmq';
-import { createDebugger } from '@colanode/core';
 
-import { config } from '@/lib/config';
-import { jobHandlerMap } from '@/jobs';
-import { JobHandler, JobInput } from '@/types/jobs';
+import { createDebugger } from '@colanode/core';
+import { jobHandlerMap, JobHandler, JobInput } from '@colanode/server/jobs';
+import { config } from '@colanode/server/lib/config';
 
 const debug = createDebugger('server:service:job');
 
@@ -42,11 +41,11 @@ class JobService {
 
     if (config.ai.enabled) {
       this.jobQueue.upsertJobScheduler(
-        'check_node_embeddings',
+        'node.embed.scan',
         { pattern: '0 */30 * * * *' },
         {
-          name: 'check_node_embeddings',
-          data: { type: 'check_node_embeddings' } as JobInput,
+          name: 'node.embed.scan',
+          data: { type: 'node.embed.scan' } as JobInput,
           opts: {
             backoff: 3,
             attempts: 5,
@@ -56,11 +55,11 @@ class JobService {
       );
 
       this.jobQueue.upsertJobScheduler(
-        'check_document_embeddings',
+        'document.embed.scan',
         { pattern: '0 */30 * * * *' },
         {
-          name: 'check_document_embeddings',
-          data: { type: 'check_document_embeddings' } as JobInput,
+          name: 'document.embed.scan',
+          data: { type: 'document.embed.scan' } as JobInput,
           opts: {
             backoff: 3,
             attempts: 5,
@@ -96,6 +95,18 @@ class JobService {
   private handleJobJob = async (job: Job) => {
     const input = job.data as JobInput;
     const handler = jobHandlerMap[input.type] as JobHandler<typeof input>;
+    if (!handler) {
+      if (job.opts.repeat && job.repeatJobKey) {
+        await this.jobQueue?.removeJobScheduler(job.repeatJobKey);
+        debug(
+          `Removed recurring job ${job.id} with type ${input.type} as no handler was found.`
+        );
+      }
+
+      debug(`Job ${job.id} with type ${input.type} not found.`);
+      return;
+    }
+
     await handler(input);
 
     debug(`Job ${job.id} with type ${input.type} completed.`);

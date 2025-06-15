@@ -2,13 +2,15 @@ import {
   SynchronizerOutputMessage,
   SyncDocumentUpdatesInput,
   SyncDocumentUpdateData,
+  createDebugger,
 } from '@colanode/core';
 import { encodeState } from '@colanode/crdt';
+import { database } from '@colanode/server/data/database';
+import { SelectDocumentUpdate } from '@colanode/server/data/schema';
+import { BaseSynchronizer } from '@colanode/server/synchronizers/base';
+import { Event } from '@colanode/server/types/events';
 
-import { BaseSynchronizer } from '@/synchronizers/base';
-import { Event } from '@/types/events';
-import { database } from '@/data/database';
-import { SelectDocumentUpdate } from '@/data/schema';
+const debug = createDebugger('document-update-synchronizer');
 
 export class DocumentUpdateSynchronizer extends BaseSynchronizer<SyncDocumentUpdatesInput> {
   public async fetchData(): Promise<SynchronizerOutputMessage<SyncDocumentUpdatesInput> | null> {
@@ -41,17 +43,25 @@ export class DocumentUpdateSynchronizer extends BaseSynchronizer<SyncDocumentUpd
     }
 
     this.status = 'fetching';
-    const documentUpdates = await database
-      .selectFrom('document_updates')
-      .selectAll()
-      .where('root_id', '=', this.input.rootId)
-      .where('revision', '>', this.cursor)
-      .orderBy('revision', 'asc')
-      .limit(20)
-      .execute();
 
-    this.status = 'pending';
-    return documentUpdates;
+    try {
+      const documentUpdates = await database
+        .selectFrom('document_updates')
+        .selectAll()
+        .where('root_id', '=', this.input.rootId)
+        .where('revision', '>', this.cursor)
+        .orderBy('revision', 'asc')
+        .limit(20)
+        .execute();
+
+      return documentUpdates;
+    } catch (error) {
+      debug('Error fetching document updates for sync', error);
+    } finally {
+      this.status = 'pending';
+    }
+
+    return [];
   }
 
   private buildMessage(
@@ -72,7 +82,7 @@ export class DocumentUpdateSynchronizer extends BaseSynchronizer<SyncDocumentUpd
     );
 
     return {
-      type: 'synchronizer_output',
+      type: 'synchronizer.output',
       userId: this.user.userId,
       id: this.id,
       items: items.map((item) => ({
@@ -84,7 +94,7 @@ export class DocumentUpdateSynchronizer extends BaseSynchronizer<SyncDocumentUpd
 
   private shouldFetch(event: Event) {
     if (
-      event.type === 'document_update_created' &&
+      event.type === 'document.update.created' &&
       event.rootId === this.input.rootId
     ) {
       return true;

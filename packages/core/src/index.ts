@@ -36,3 +36,5 @@ export * from './types/crdt';
 export * from './lib/mentions';
 export * from './types/mentions';
 export * from './types/avatars';
+export * from './types/build';
+export * from './lib/servers';

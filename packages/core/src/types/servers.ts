@@ -1,8 +1,18 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
-export const serverAttributesSchema = z.record(z.string(), z.unknown());
+export const serverGoogleConfigSchema = z.discriminatedUnion('enabled', [
+  z.object({
+    enabled: z.literal(true),
+    clientId: z.string(),
+  }),
+  z.object({
+    enabled: z.literal(false),
+  }),
+]);
 
-export type ServerAttributes = z.infer<typeof serverAttributesSchema>;
+export const serverAccountConfigSchema = z.object({
+  google: serverGoogleConfigSchema,
+});
 
 export const serverConfigSchema = z.object({
   name: z.string(),
@@ -10,7 +20,8 @@ export const serverConfigSchema = z.object({
   version: z.string(),
   sha: z.string(),
   ip: z.string().nullable().optional(),
-  attributes: serverAttributesSchema,
+  pathPrefix: z.string().nullable().optional(),
+  account: serverAccountConfigSchema.nullable().optional(),
 });
 
 export type ServerConfig = z.infer<typeof serverConfigSchema>;

@@ -1,9 +1,8 @@
 import { MessageAttributes } from '@colanode/core';
-
-import { redis } from '@/data/redis';
-import { SelectNode } from '@/data/schema';
-import { config } from '@/lib/config';
-import { jobService } from '@/services/job-service';
+import { redis } from '@colanode/server/data/redis';
+import { SelectNode } from '@colanode/server/data/schema';
+import { config } from '@colanode/server/lib/config';
+import { jobService } from '@colanode/server/services/job-service';
 
 export const fetchEmbeddingCursor = async (
   cursorId: string
@@ -40,7 +39,7 @@ export const scheduleNodeEmbedding = async (node: SelectNode) => {
   }
 
   const jobOptions: { jobId: string; delay?: number } = {
-    jobId: `embed_node:${node.id}`,
+    jobId: `node.embed.${node.id}`,
   };
 
   // Only add delay for non-message nodes
@@ -50,7 +49,7 @@ export const scheduleNodeEmbedding = async (node: SelectNode) => {
 
   await jobService.addJob(
     {
-      type: 'embed_node',
+      type: 'node.embed',
       nodeId: node.id,
     },
     jobOptions
@@ -64,11 +63,11 @@ export const scheduleDocumentEmbedding = async (documentId: string) => {
 
   await jobService.addJob(
     {
-      type: 'embed_document',
+      type: 'document.embed',
       documentId,
     },
     {
-      jobId: `embed_document:${documentId}`,
+      jobId: `document.embed.${documentId}`,
       delay: config.ai.documentEmbeddingDelay,
     }
   );
