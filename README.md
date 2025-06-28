@@ -39,7 +39,7 @@ All changes you make are saved to a local SQLite database first and then synced 
 
 ### Concurrent edits
 
-Colanode relies on **Conflict-free Replicated Data Types (CRDTs)** - powered by [Yjs](https://docs.yjs.dev/) - to allow real-time collaboration on entries like pages or database records. This means multiple people can edit at the same time, and the system gracefully merges everyone’s updates. Deletions are also tracked as specialized transactions. Messages and file operations don’t support concurrent edits and use simpler database tables.
+Colanode relies on **Conflict-free Replicated Data Types (CRDTs)** - powered by [Yjs](https://docs.yjs.dev/) - to allow real-time collaboration on entries like pages or database records. This means multiple people can edit at the same time, and the system gracefully merges everyone's updates. Deletions are also tracked as specialized transactions. Messages and file operations don't support concurrent edits and use simpler database tables.
 
 ## Get started for free
 
@@ -52,16 +52,16 @@ For optimal performance, you can install our **desktop app**, available from our
 
 Both cloud servers are currently available in beta and free to use; pricing details will be announced soon.
 
-### Self-host with Docker
+### Self-host
 
-If you prefer to host your own Colanode server, simply use the Docker Compose file in the root of this repository. In the near future, we’ll provide more detailed instructions for other environments, including Kubernetes. For now, here’s what you need to run Colanode yourself:
+If you prefer to host your own Colanode server, check out the [`hosting/`](hosting/) folder which contains the Docker Compose file and deployment configurations. For Kubernetes deployments, see the [`hosting/kubernetes/`](hosting/kubernetes/) folder which includes Helm charts and additional documentation. Here's what you need to run Colanode yourself:
 
 - **Postgres** with the **pgvector** extension.
 - **Redis** (any Redis-compatible service will work, e.g., Valkey).
 - **S3-compatible storage** (supporting basic file operations: PUT, GET, DELETE).
 - **Colanode server API**, provided as a Docker image.
 
-All required environment variables for the Colanode server can be found in the docker-compose file.
+All required environment variables for the Colanode server can be found in the [`hosting/docker/docker-compose.yaml`](hosting/docker/docker-compose.yaml) file or [`hosting/kubernetes/README.md`](hosting/kubernetes/README.md) for Kubernetes deployments.
 
 ## License
 

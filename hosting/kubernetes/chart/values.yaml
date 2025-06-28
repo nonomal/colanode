@@ -1,0 +1,193 @@
+# Default values for colanode.
+
+# -- Override the name for the selector labels, defaults to the chart name
+nameOverride: ''
+# -- Override the full name of the deployed resources, defaults to a combination of the release name and the name for the selector labels
+fullnameOverride: ''
+
+# Core Colanode Configuration
+colanode:
+  # -- Number of replicas for the Colanode server deployment
+  replicaCount: 1
+
+  image:
+    # -- Colanode server image repository
+    repository: ghcr.io/colanode/server
+    # -- Colanode server image pull policy
+    pullPolicy: Always
+    # -- Colanode server image tag
+    tag: 'latest'
+
+  # -- Image pull secrets
+  imagePullSecrets: []
+
+  serviceAccount:
+    # -- Specifies whether a service account should be created
+    create: true
+    # -- Annotations to add to the service account
+    annotations: {}
+    # -- The name of the service account to use. If not set and create is true, a name is generated using the fullname template
+    name: ''
+    # -- Automatically mount a ServiceAccount's API credentials?
+    automount: true
+
+  # -- Pod annotations (empty by default)
+  podAnnotations: {}
+
+  # -- Pod labels (empty by default)
+  podLabels: {}
+
+  service:
+    # -- Kubernetes service type
+    type: ClusterIP
+    # -- Kubernetes service port
+    port: 3000
+
+  ingress:
+    # -- Enable ingress controller resource
+    enabled: false
+    # -- Ingress controller class name
+    className: ''
+    # -- Ingress annotations
+    annotations:
+      {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    # -- Ingress hostnames
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            pathType: Prefix
+    # -- Ingress TLS configuration
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+
+  # -- Resource requests and limits (empty by default for flexibility)
+  resources: {}
+
+  # -- Horizontal Pod Autoscaler (disabled by default for simplicity)
+  autoscaling:
+    enabled: false
+
+  # -- Colanode server configuration
+  config:
+    # Core settings
+    NODE_ENV: production
+    PORT: 3000
+    SERVER_NAME: 'Colanode Kubernetes'
+    SERVER_AVATAR: ''
+    SERVER_MODE: 'standalone'
+
+    # Debug logging (uncomment to enable verbose logs)
+    DEBUG: 'colanode:*'
+
+    # Account settings
+    ACCOUNT_VERIFICATION_TYPE: 'automatic'
+    ACCOUNT_OTP_TIMEOUT: '600' # in seconds
+    ACCOUNT_ALLOW_GOOGLE_LOGIN: 'false'
+
+    # User limits
+    USER_STORAGE_LIMIT: '10737418240' # 10 GB
+    USER_MAX_FILE_SIZE: '104857600' # 100 MB
+
+    # Database connection (PostgreSQL)
+    POSTGRES_URL: 'postgres://colanode_user:$(POSTGRES_PASSWORD)@{{ .Release.Name }}-postgresql:5432/colanode_db'
+    # Optional SSL settings for PostgreSQL
+    # POSTGRES_SSL_REJECT_UNAUTHORIZED: "false"
+    # POSTGRES_SSL_CA: ""
+    # POSTGRES_SSL_KEY: ""
+    # POSTGRES_SSL_CERT: ""
+
+    # Redis/Valkey configuration
+    REDIS_DB: '0'
+    REDIS_JOBS_QUEUE_NAME: 'jobs'
+    REDIS_JOBS_QUEUE_PREFIX: 'colanode'
+    REDIS_EVENTS_CHANNEL: 'events'
+
+    # S3 storage for files
+    STORAGE_S3_ENDPOINT: 'http://{{ .Release.Name }}-minio:9000'
+    STORAGE_S3_ACCESS_KEY: 'minioadmin'
+    STORAGE_S3_SECRET_KEY: '$(MINIO_ROOT_PASSWORD)'
+    STORAGE_S3_BUCKET: 'colanode'
+    STORAGE_S3_REGION: 'us-east-1'
+    STORAGE_S3_FORCE_PATH_STYLE: 'true'
+
+    # Email configuration
+    SMTP_ENABLED: 'false'
+    # SMTP_HOST: ""
+    # SMTP_PORT: "587"
+    # SMTP_USER: ""
+    # SMTP_PASSWORD: ""
+    # SMTP_EMAIL_FROM: ""
+    # SMTP_EMAIL_FROM_NAME: "Colanode"
+
+    # AI features (optional)
+    AI_ENABLED: 'false'
+
+global:
+  security:
+    # Required for custom PostgreSQL image with pgvector extension
+    # Bitnami Helm charts require this setting for non-official images
+    allowInsecureImages: true
+
+# PostgreSQL with pgvector extension
+postgresql:
+  # -- Enable PostgreSQL deployment
+  enabled: true
+  image:
+    registry: ghcr.io
+    repository: colanode/postgresql
+    tag: '17'
+    pullPolicy: Always
+
+  auth:
+    username: postgres
+    # password: ""  # Leave empty to auto-generate
+    # existingSecret: ""  # Will use auto-generated secret
+    database: colanode_db
+    secretKeys:
+      userPasswordKey: 'postgres-password'
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# Redis (alias for Valkey)
+redis:
+  # -- Enable Redis deployment
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    username: default
+    # password: ""  # Leave empty to auto-generate
+    # existingSecret: ""  # Will use auto-generated secret
+    secretKeys:
+      redisPasswordKey: 'valkey-password'
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# MinIO object storage
+minio:
+  auth:
+    rootUser: 'minioadmin'
+    # password: ""  # Leave empty to auto-generate
+    # existingSecret: ""  # Will use auto-generated secret
+    rootUserKey: 'root-user'
+    # -- Key within the existing secret that holds the root password
+    rootPasswordKey: 'root-password'
+  persistence:
+    enabled: true
+    size: 10Gi
+  service:
+    type: ClusterIP
+  # Create default buckets for Colanode
+  defaultBuckets: 'colanode'
+  extraArgs:
+    - '--console-address'
+    - ':9001'
